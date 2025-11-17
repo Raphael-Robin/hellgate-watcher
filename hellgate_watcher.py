@@ -382,7 +382,7 @@ def generate_equipment_image_from_json(equipment_json:dict):
             continue
         image_name += item["Type"]
 
-    equipment_image_path = f"{IMAGE_FOLDER}/equipment/{image_name}.png"
+    equipment_image_path = f"{IMAGE_FOLDER}/equipments/{image_name}.png"
 
     equipment_image.save(equipment_image_path)
     return equipment_image_path
@@ -423,26 +423,3 @@ def generate_battle_report_image(battle_events,id):
     battle_report_image_path = f"{IMAGE_FOLDER}/battle_reports/battle_report_{id}.png"
     battle_report_image.save(battle_report_image_path)
     return battle_report_image_path
-
-
-    
-
-
-    
-
-
-
-
-if __name__ == "__main__":
-    battles = get_recent_battles(SERVER_URL,limit=50,pages=1)
-    print(f"Parsed {len(battles)} Battles")
-    battles = find_10_man_battles(battles)
-    print(f"Found {len(battles)} battles with 10 players")
-    battles = find_5v5_battles(battles)
-    print(f"Found {len(battles)} 5v5 battles")
-
-    print("Battles =====================================")
-    for battle in battles:
-        id = battle["id"]
-        b = requests.get(f"{SERVER_URL}/events/battle/{id}").json()
-        generate_battle_report_image(b,id)
