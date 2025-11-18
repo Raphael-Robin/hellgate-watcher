@@ -5,7 +5,7 @@ SERVER_URL = "https://gameinfo-ams.albiononline.com/api/gameinfo"
 
 
 def main():
-    battles = get_recent_battles(SERVER_URL,limit=50,pages=1)
+    battles = get_recent_battles(SERVER_URL,limit=50,pages=5)
     print(f"Parsed {len(battles)} Battles")
     battles = find_10_man_battles(battles)
     print(f"Found {len(battles)} battles with 10 players")
@@ -15,13 +15,13 @@ def main():
     print("Battles =====================================")
     for battle in battles:
         id = battle["id"]
-        b = requests.get(f"{SERVER_URL}/events/battle/{id}").json()
-        generate_battle_report_image(b,id)
+        battle_events = requests.get(f"{SERVER_URL}/events/battle/{id}").json()
+        generate_battle_report_image(battle_events,id)
 
     
-    id = 286454201
-    b = requests.get(f"{SERVER_URL}/events/battle/{id}").json()
-    generate_battle_report_image(b,id)
+    # id = 286561876
+    # battle_events = requests.get(f"{SERVER_URL}/events/battle/{id}").json()
+    # generate_battle_report_image(battle_events,id)
 
 
 if __name__ == "__main__":

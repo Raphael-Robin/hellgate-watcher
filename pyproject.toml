@@ -7,4 +7,5 @@ requires-python = ">=3.13"
 dependencies = [
     "requests",
     "pillow",
+    "ipynb>=0.5.1",
 ]
