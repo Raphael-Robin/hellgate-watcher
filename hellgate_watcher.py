@@ -218,7 +218,7 @@ async def generate_item_image_from_json(item:dict):
     if os.path.exists(item_image_path):
         return item_image_path
 
-    request = f"{RENDER_API_URL}{item['Type']}.png?quality={item['Quality']}"
+    request = f"{RENDER_API_URL}{item['Type']}.png?count=1&quality={item['Quality']}"
     image = await fetch_response_from_request_url(request, return_json=False)
     if not image: return None # Or a path to a placeholder image
 
@@ -424,7 +424,7 @@ async def get_recent_battle_reports():
 
     while not contains_battles_out_of_range:
         battles.extend(await get_recent_battles(SERVER_URL,limit=BATTLES_LIMIT,page=page_number))
-        print(f"Fetching page {page_number}, {len(battles)} battles so far")
+        # print(f"Fetching page {page_number}, {len(battles)} battles so far")
         page_number += 1
         await asyncio.sleep(RATE_LIMIT_DELAY_SECONDS)
         contains_battles_out_of_range = battles_contains_battle_older_than(battles)
