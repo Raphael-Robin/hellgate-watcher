@@ -117,6 +117,9 @@ def get_battle_data(battle_events):
             for item in existing_player["Equipment"].keys():
                 if existing_player["Equipment"][item] is None:
                     existing_player["Equipment"][item] = player_data["Equipment"][item]
+            if existing_player["AverageItemPower"] is None or existing_player["AverageItemPower"] == 0.:
+                existing_player["AverageItemPower"] = player_data["AverageItemPower"]
+
 
     
 
@@ -279,10 +282,12 @@ async def generate_battle_report_image(battle_events,id):
         # For bold, use a specific bold font file like 'arialbd.ttf'
         player_name_font = ImageFont.truetype(PLAYER_NAME_FONT_PATH, PLAYER_NAME_FONT_SIZE) # Keep player name font size
         timestamp_font = ImageFont.truetype(TIMESTAMP_FONT_PATH, TIMESTAMP_FONT_SIZE) # Increased font size for timestamp
+        ip_font = ImageFont.truetype(TIMESTAMP_FONT_PATH, 35)
     except IOError:
         print("Arial font not found. Using default font.")
         player_name_font = ImageFont.load_default()
         timestamp_font = ImageFont.load_default()
+        ip_font = ImageFont.load_default()
 
     dead_players = set(data["victims"])
 
@@ -312,8 +317,21 @@ async def generate_battle_report_image(battle_events,id):
         R, G, B, A = equipment_image.split()
         battle_report_image.paste(equipment_image, (x_pos, y_pos + PLAYER_NAME_AREA_HEIGHT), A)
 
+        # Draw Average Item Power
+        ip_text = str(round(player["AverageItemPower"]))
+        try:
+            bbox = draw.textbbox((0, 0), ip_text, font=ip_font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            ip_text_x = x_pos + (EQUIPMENT_IMAGE_SIZE - text_width) / 2
+            ip_text_y = y_pos + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + (IP_AREA_HEIGHT - text_height) / 2
+            draw.text((ip_text_x, ip_text_y), ip_text, font=ip_font, fill=FONT_COLOR)
+        except AttributeError:
+            draw.text((x_pos + (EQUIPMENT_IMAGE_SIZE / 2) - 20, y_pos + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + 10), ip_text, font=ip_font, fill=FONT_COLOR)
+
+
     # --- Draw Team B ---
-    y_pos = TOP_BOTTOM_PADDING + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + MIDDLE_GAP
+    y_pos = TOP_BOTTOM_PADDING + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + IP_AREA_HEIGHT + MIDDLE_GAP
     for i, player in enumerate(data["TeamB"]):
         x_pos = SIDE_PADDING + i * (EQUIPMENT_IMAGE_SIZE + SPACING)
 
@@ -339,6 +357,19 @@ async def generate_battle_report_image(battle_events,id):
         R, G, B, A = equipment_image.split()
         battle_report_image.paste(equipment_image, (x_pos, y_pos + PLAYER_NAME_AREA_HEIGHT), A)
 
+        # Draw Average Item Power
+        ip_text = str(round(player["AverageItemPower"]))
+        try:
+            bbox = draw.textbbox((0, 0), ip_text, font=ip_font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            ip_text_x = x_pos + (EQUIPMENT_IMAGE_SIZE - text_width) / 2
+            ip_text_y = y_pos + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + (IP_AREA_HEIGHT - text_height) / 2
+            draw.text((ip_text_x, ip_text_y), ip_text, font=ip_font, fill=FONT_COLOR)
+        except AttributeError:
+            draw.text((x_pos + (EQUIPMENT_IMAGE_SIZE / 2) - 20, y_pos + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + 10), ip_text, font=ip_font, fill=FONT_COLOR)
+
+
     # --- Draw Timestamp ---
     if battle_events:
         # Parse timestamps from the event data
@@ -355,7 +386,7 @@ async def generate_battle_report_image(battle_events,id):
         duration_text = f"Duration: {duration_minutes:02d}m {duration_seconds:02d}s"
 
         # Calculate text position for centering
-        timestamp_y = TOP_BOTTOM_PADDING + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + (MIDDLE_GAP // 2)
+        timestamp_y = TOP_BOTTOM_PADDING + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + IP_AREA_HEIGHT + (MIDDLE_GAP // 2)
         
         # Using textbbox for better centering if available (Pillow >= 8.0.0)
         try:
@@ -401,7 +432,7 @@ def sort_teams_by_class(team):
 
         if is_player_healer:
             healers.append(player)
-        elif "PLATE_ROYAL" in armor:
+        elif "PLATE_ROYAL" in armor or "PLATE_SET1" in armor:
             melees.append(player)
         elif "PLATE" in armor:
             tanks.append(player)
@@ -410,6 +441,16 @@ def sort_teams_by_class(team):
         else:
             others.append(player)
 
+    try:
+        others.sort(key=lambda x: x["Equipment"]["MainHand"]["Type"], reverse=True)
+        unknown.sort(key=lambda x: x["Equipment"]["MainHand"]["Type"], reverse=True)
+        tanks.sort(key=lambda x: x["Equipment"]["MainHand"]["Type"], reverse=True)
+        melees.sort(key=lambda x: x["Equipment"]["MainHand"]["Type"], reverse=True)
+        leathers.sort(key=lambda x: x["Equipment"]["MainHand"]["Type"], reverse=True)
+        others.sort(key=lambda x: x["Equipment"]["MainHand"]["Type"], reverse=True)
+        healers.sort(key=lambda x: x["Equipment"]["MainHand"]["Type"], reverse=True)
+    except Exception as e:
+        print(f"Error sorting players: {e}")
     return unknown + tanks + melees + leathers + others + healers
 
 def is_healer(player):
