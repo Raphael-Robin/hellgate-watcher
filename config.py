@@ -13,7 +13,7 @@ SERVER_URL = BASE_URL_EUROPE
 RATE_LIMIT_DELAY_SECONDS = 0.5
 TIMEOUT = 30
 BATTLE_CHECK_INTERVAL_MINUTES = 1
-BATTLES_MAX_AGE_MINUTES = 20
+BATTLES_MAX_AGE_MINUTES = 5
 
 # --------------------------------------------------------------------------------------------------
 # FILE PATHS
@@ -52,7 +52,7 @@ PLAYER_NAME_FONT_SIZE = 40
 TIMESTAMP_FONT_SIZE = 60
 FONT_COLOR = (255, 255, 255)
 LINE_SPACING = 20
-DEAD_PLAYER_GRAYSCALE_ENHANCEMENT = 0.5
+DEAD_PLAYER_GRAYSCALE_ENHANCEMENT = 0.8
 
 # --------------------------------------------------------------------------------------------------
 # EQUIPMENT AND LAYOUT

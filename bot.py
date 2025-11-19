@@ -32,7 +32,7 @@ async def on_ready():
  
 @commands.has_permissions(administrator=True)
 @bot.command()
-async def set_channel(ctx, channel: discord.TextChannel):
+async def setchannel(ctx, channel: discord.TextChannel):
     if not ctx.guild:
         await ctx.send('This command can only be used in a server.')
         return
