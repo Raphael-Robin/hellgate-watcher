@@ -61,7 +61,7 @@ async def check_for_new_battles():
     for channel_id in channels_map.values():
         channel = bot.get_channel(channel_id)
         
-        if channel:
+        if channel and channel.permissions_for(channel.guild.me).send_messages:
             for battle_report_path in battle_reports:
                 try:
                     with open(battle_report_path, 'rb') as f:

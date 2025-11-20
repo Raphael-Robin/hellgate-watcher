@@ -13,7 +13,7 @@ SERVER_URL = BASE_URL_EUROPE
 RATE_LIMIT_DELAY_SECONDS = 0.5
 TIMEOUT = 30
 BATTLE_CHECK_INTERVAL_MINUTES = 1
-BATTLES_MAX_AGE_MINUTES = 180
+BATTLES_MAX_AGE_MINUTES = 5
 
 # --------------------------------------------------------------------------------------------------
 # FILE PATHS
