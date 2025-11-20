@@ -1,4 +1,3 @@
-
 # --------------------------------------------------------------------------------------------------
 # API and URLs
 # --------------------------------------------------------------------------------------------------
@@ -22,14 +21,14 @@ ITEM_IMAGE_FOLDER = "./images/items"
 EQUIPMENT_IMAGE_FOLDER = "./images/equipments"
 BATTLE_REPORT_IMAGE_FOLDER = "./images/battle_reports"
 REPORTED_BATTLES_JSON_PATH = "./data/reported_battle_reports.json"
-CHANNELS_JSON_PATH = './data/channels.json'
+CHANNELS_JSON_PATH = "./data/channels.json"
 PLAYER_NAME_FONT_PATH = "arialbd.ttf"
 TIMESTAMP_FONT_PATH = "arial.ttf"
 
 # --------------------------------------------------------------------------------------------------
 # BOT SETTINGS
 # --------------------------------------------------------------------------------------------------
-BOT_COMMAND_PREFIX = '!'
+BOT_COMMAND_PREFIX = "!"
 VERBOSE_LOGGING = False
 
 # --------------------------------------------------------------------------------------------------
@@ -48,7 +47,11 @@ MIDDLE_GAP = 200
 PLAYER_NAME_AREA_HEIGHT = 60
 IP_AREA_HEIGHT = 50
 CANVAS_WIDTH = (2 * SIDE_PADDING) + (5 * EQUIPMENT_IMAGE_SIZE) + ((5 - 1) * SPACING)
-CANVAS_HEIGHT = (2 * TOP_BOTTOM_PADDING) + (2 * (EQUIPMENT_IMAGE_SIZE + PLAYER_NAME_AREA_HEIGHT + IP_AREA_HEIGHT)) + MIDDLE_GAP
+CANVAS_HEIGHT = (
+    (2 * TOP_BOTTOM_PADDING)
+    + (2 * (EQUIPMENT_IMAGE_SIZE + PLAYER_NAME_AREA_HEIGHT + IP_AREA_HEIGHT))
+    + MIDDLE_GAP
+)
 BATTLE_REPORT_CANVAS_SIZE = (CANVAS_WIDTH, CANVAS_HEIGHT)
 BACKGROUND_COLOR = (40, 40, 40, 255)
 PLAYER_NAME_FONT_SIZE = 40
@@ -61,9 +64,15 @@ DEAD_PLAYER_GRAYSCALE_ENHANCEMENT = 0.2
 # EQUIPMENT AND LAYOUT
 # --------------------------------------------------------------------------------------------------
 LAYOUT = {
-    "bag": (0, 0), "head": (1, 0), "cape": (2, 0),
-    "mainHand": (0, 1), "armor": (1, 1), "offHand": (2, 1),
-    "potion": (0, 2), "shoes": (1, 2), "food": (2, 2)
+    "bag": (0, 0),
+    "head": (1, 0),
+    "cape": (2, 0),
+    "mainHand": (0, 1),
+    "armor": (1, 1),
+    "offHand": (2, 1),
+    "potion": (0, 2),
+    "shoes": (1, 2),
+    "food": (2, 2),
 }
 IMAGE_SIZE = 217
 EQUIPMENT_CANVAS_SIZE = (3 * IMAGE_SIZE, 3 * IMAGE_SIZE)
@@ -72,10 +81,21 @@ EQUIPMENT_CANVAS_SIZE = (3 * IMAGE_SIZE, 3 * IMAGE_SIZE)
 # WEAPON LISTS
 # --------------------------------------------------------------------------------------------------
 HEALING_WEAPONS = [
-    "MAIN_HOLYSTAFF", "2H_HOLYSTAFF", "2H_DIVINESTAFF", "MAIN_HOLYSTAFF_MORGANA",
-    "2H_HOLYSTAFF_HELL", "2H_HOLYSTAFF_UNDEAD", "MAIN_HOLYSTAFF_AVALON", "2H_HOLYSTAFF_CRYSTAL",
-    "MAIN_NATURESTAFF", "2H_NATURESTAFF", "2H_WILDSTAFF", "MAIN_NATURESTAFF_KEEPER",
-    "2H_NATURESTAFF_HELL", "2H_NATURESTAFF_KEEPER", "MAIN_NATURESTAFF_AVALON",
+    "MAIN_HOLYSTAFF",
+    "2H_HOLYSTAFF",
+    "2H_DIVINESTAFF",
+    "MAIN_HOLYSTAFF_MORGANA",
+    "2H_HOLYSTAFF_HELL",
+    "2H_HOLYSTAFF_UNDEAD",
+    "MAIN_HOLYSTAFF_AVALON",
+    "2H_HOLYSTAFF_CRYSTAL",
+    "MAIN_NATURESTAFF",
+    "2H_NATURESTAFF",
+    "2H_WILDSTAFF",
+    "MAIN_NATURESTAFF_KEEPER",
+    "2H_NATURESTAFF_HELL",
+    "2H_NATURESTAFF_KEEPER",
+    "MAIN_NATURESTAFF_AVALON",
     "MAIN_NATURESTAFF_CRYSTAL",
 ]
 
@@ -83,13 +103,13 @@ HEALING_WEAPONS = [
 # ALBION STATS
 # --------------------------------------------------------------------------------------------------
 QUALITY_IP = {
-        "0": 0,
-        "1": 0,
-        "2": 20,
-        "3": 40,
-        "4": 60,
-        "5": 100,
-    }
+    "0": 0,
+    "1": 0,
+    "2": 20,
+    "3": 40,
+    "4": 60,
+    "5": 100,
+}
 LETHAL_5v5_SOFTCAP_PERCENT = 35
 LETHAL_5v5_IP_CAP = 1100
 OVERCHARGE_BONUS_IP = 100
