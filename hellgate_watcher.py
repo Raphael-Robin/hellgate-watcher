@@ -2,7 +2,8 @@ import json
 import os
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from datetime import datetime,timedelta
-import aiohttp,asyncio
+import aiohttp
+import asyncio
 from config import *
 
 
@@ -212,7 +213,9 @@ def get_battle_data(battle_events):
     }
 
 async def generate_item_image_from_json(item:dict):
-    
+    if not item:
+        return None
+
     item_image_path = f"{IMAGE_FOLDER}/items/{item["Type"]}&{item["Quality"]}.png"
     
     if VERBOSE_LOGGING:
@@ -240,6 +243,9 @@ async def generate_equipment_image_from_json(equipment_json:dict):
     equipment_image = Image.new('RGB',EQUIPMENT_CANVAS_SIZE, BACKGROUND_COLOR)
 
     for item_slot, item_image in images.items():
+        if item_image is None or item_slot not in LAYOUT.keys():
+            continue
+
         item_image = Image.open(item_image).convert('RGBA')
         coords = (LAYOUT[item_slot][0]*IMAGE_SIZE, LAYOUT[item_slot][1]*IMAGE_SIZE)
         R, G, B, A = item_image.split()

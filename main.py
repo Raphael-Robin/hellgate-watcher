@@ -1,5 +1,6 @@
 from bot import bot
-import dotenv,os
+import dotenv
+import os
 
 dotenv.load_dotenv()
 DISCORDTOKEN = os.getenv('DISCORDTOKEN')

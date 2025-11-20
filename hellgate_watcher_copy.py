@@ -1,11 +1,50 @@
 import asyncio
 from datetime import datetime,timedelta
 import json
-from typing import TypedDict,List,Dict
+from typing import TypedDict,List,Dict,Tuple
 from PIL import Image,ImageDraw,ImageFont,ImageEnhance
 import os
 import aiohttp
-from config import *
+from config import (
+    BATTLES_LIMIT,
+    BATTLES_MAX_AGE_MINUTES,
+    OVERCHARGE_BONUS_IP,
+    LETHAL_5v5_IP_CAP,
+    LETHAL_5v5_SOFTCAP_PERCENT,
+    QUALITY_IP,
+    SERVER_URL,
+    RENDER_API_URL,
+    IMAGE_FOLDER,
+    EQUIPMENT_IMAGE_FOLDER,
+    ITEM_IMAGE_FOLDER,
+    BATTLE_REPORT_IMAGE_FOLDER,
+    COVERED_BATTLES_JSON_PATH,
+    RATE_LIMIT_DELAY_SECONDS,
+    TIMEOUT,
+    PLAYER_NAME_FONT_PATH,
+    TIMESTAMP_FONT_PATH,
+    PLAYER_NAME_FONT_SIZE,
+    TIMESTAMP_FONT_SIZE,
+    FONT_COLOR,
+    TOP_BOTTOM_PADDING,
+    PLAYER_NAME_AREA_HEIGHT,
+    EQUIPMENT_IMAGE_SIZE,
+    MIDDLE_GAP,
+    IP_AREA_HEIGHT,
+    LINE_SPACING,
+    SPACING,
+    CANVAS_WIDTH,
+    SIDE_PADDING,
+    BACKGROUND_COLOR,
+    DEAD_PLAYER_GRAYSCALE_ENHANCEMENT,
+    LAYOUT,
+    BATTLE_REPORT_CANVAS_SIZE,
+    HEALING_WEAPONS,
+    VERBOSE_LOGGING,
+    IMAGE_SIZE,
+    EQUIPMENT_CANVAS_SIZE,
+)
+
 
 class Item(TypedDict):
     type: str
@@ -21,7 +60,6 @@ class Equipment(TypedDict):
     potion: Item
     shoes: Item
     food: Item
-
 
 class Player(TypedDict):
     id: str
@@ -118,11 +156,11 @@ def generate_battle_reports(battles: List[Battle]) -> List[str]:
     battle_reports = [generate_battle_report(battle) for battle in battles]
     return battle_reports
 
-async def generate_equipment_image(equipment: Equipment):
+async def generate_equipment_image(equipment: Equipment) -> str:
     item_images = {}
 
     for key in equipment:
-        if equipment[key] == None:
+        if not equipment[key]:
             continue
         image_path = await generate_item_image(equipment[key])
         item_images[key] = image_path
@@ -178,7 +216,7 @@ async def generate_item_image(item: Item) -> str | None:
         f.write(image)
     return item_image_path
 
-async def get_image(url: str) -> bytes:
+async def get_image(url: str) -> bytes | None:
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=TIMEOUT)) as session:
         try:
             async with session.get(url) as response:
@@ -189,7 +227,7 @@ async def get_image(url: str) -> bytes:
             print(f"An error occurred while fetching {url}: {e}")
             return None
 
-async def get_json(url: str) -> Dict:
+async def get_json(url: str) -> Dict | None:
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=TIMEOUT)) as session:
         try:
             async with session.get(url) as response:
@@ -310,11 +348,11 @@ def get_battle_objects(battle_dict:dict,battle_events:list[dict])->Battle:
     battle.events = battle_events
     battle.victims = [event["Victim"]["Id"] for event in battle_events]
     battle.players = get_players(battle_dict, battle_events)
-    team_a_ids, team_b_ids = get_team_ids(battle_dict, battle_events)
+    team_a_ids, team_b_ids = get_ids_by_team(battle_dict, battle_events)
     battle.team_a_ids = team_a_ids
     battle.team_b_ids = team_b_ids
 
-def get_players(battle_dict, battle_events):
+def get_players(battle_dict, battle_events) -> List[Player]:
     players = []
     for player_dict in battle_dict["players"]:
         player = Player()
@@ -327,7 +365,7 @@ def get_players(battle_dict, battle_events):
         players.append(player)
     return players
     
-def get_equipment(id, battle_events):
+def get_equipment(id, battle_events) -> Equipment:
     equipment = Equipment()
     for event in battle_events:
         player_data = []
@@ -339,28 +377,83 @@ def get_equipment(id, battle_events):
             player_data.append(group_member)
         for player in player_data:
             if player["Id"] == id:
-                if player["Equipment"]["MainHand"]: equipment.mainHand  = get_item(player["Equipment"]["MainHand"])
-                if player["Equipment"]["OffHand"]:  equipment.offHand   = get_item(player["Equipment"]["OffHand"]) 
-                if player["Equipment"]["Armor"]:    equipment.armor     = get_item(player["Equipment"]["Armor"]) 
-                if player["Equipment"]["Head"]:     equipment.head      = get_item(player["Equipment"]["Head"]) 
-                if player["Equipment"]["Shoes"]:    equipment.shoes     = get_item(player["Equipment"]["Shoes"]) 
-                if player["Equipment"]["Cape"]:     equipment.cape      = get_item(player["Equipment"]["Cape"]) 
-                if player["Equipment"]["Bag"]:      equipment.bag       = get_item(player["Equipment"]["Bag"]) 
-                if player["Equipment"]["Potion"]:   equipment.potion    = get_item(player["Equipment"]["Potion"]) 
-                if player["Equipment"]["Food"]:     equipment.food      = get_item(player["Equipment"]["Food"]) 
+                if player["Equipment"]["MainHand"]: 
+                    equipment.mainHand  = get_item(player["Equipment"]["MainHand"])
+                if player["Equipment"]["OffHand"]:  
+                    equipment.offHand   = get_item(player["Equipment"]["OffHand"]) 
+                if player["Equipment"]["Armor"]:    
+                    equipment.armor     = get_item(player["Equipment"]["Armor"]) 
+                if player["Equipment"]["Head"]:     
+                    equipment.head      = get_item(player["Equipment"]["Head"]) 
+                if player["Equipment"]["Shoes"]:    
+                    equipment.shoes     = get_item(player["Equipment"]["Shoes"]) 
+                if player["Equipment"]["Cape"]:     
+                    equipment.cape      = get_item(player["Equipment"]["Cape"]) 
+                if player["Equipment"]["Bag"]:      
+                    equipment.bag       = get_item(player["Equipment"]["Bag"]) 
+                if player["Equipment"]["Potion"]:   
+                    equipment.potion    = get_item(player["Equipment"]["Potion"]) 
+                if player["Equipment"]["Food"]:     
+                    equipment.food      = get_item(player["Equipment"]["Food"]) 
 
     return equipment
 
-def get_item(item_dict):
+def get_item(item_dict) -> Item:
     item = Item()
     item.type = item_dict["Type"]
     item.quality = item_dict["Quality"]
     return item
 
-def get_team_ids(battle_dict, battle_events):
-    pass
+def get_ids_by_team(battle:Battle) -> Tuple[list[str],list[str]]:
+    
+    team_a_ids = set()
+    team_b_ids = set()
+
+    all_player_ids = set(battle.players.keys())
+
+    # Seed the teams with the first event's killer.
+    if battle.events:
+        first_killer_id = battle.events[0]['Killer']['Id']
+        team_a_ids.add(first_killer_id)
+
+    # Iteratively assign players to teams until the assignments are stable.
+    for _ in range(len(all_player_ids) + 1): 
+        for event in battle.events:
+            killer_id = event['Killer']['Id']
+            victim_id = event['Victim']['Id']
+            
+            group_member_ids = {p['Id'] for p in event['GroupMembers']}
+
+            if killer_id in team_a_ids:
+                team_a_ids.update(group_member_ids)
+                if victim_id not in team_a_ids:
+                    team_b_ids.add(victim_id)
+            elif killer_id in team_b_ids:
+                team_b_ids.update(group_member_ids)
+                if victim_id not in team_b_ids:
+                    team_a_ids.add(victim_id)
+            
+            if victim_id in team_a_ids:
+                if killer_id not in team_a_ids:
+                    team_b_ids.add(killer_id)
+                    team_b_ids.update(group_member_ids)
+            elif victim_id in team_b_ids:
+                if killer_id not in team_b_ids:
+                    team_a_ids.add(killer_id)
+                    team_a_ids.update(group_member_ids)
+
+    # Assigning any remaining unassigned players
+    # if either team is full, add any remaining players to the other team
+    if len(all_player_ids) == 10:
+        if len(team_a_ids) >= 5:
+            team_b_ids.update(all_player_ids - team_a_ids)
+            team_a_ids = all_player_ids - team_b_ids # Recalculate to trim extras
+        elif len(team_b_ids) >= 5:
+            team_a_ids.update(all_player_ids - team_b_ids)
+            team_b_ids = all_player_ids - team_a_ids # Recalculate to trim extras
 
 
+    return list(team_a_ids), list(team_b_ids)
 
 def load_covered_battles():
     try:
@@ -389,7 +482,6 @@ def contains_battles_out_of_range(battles):
 async def get_recent_battles() -> List[Battle]:
     battles_dicts = []
     battles = []
-    battle_report_paths = []
     contains_battles_out_of_range = False
     page_number = 0
 
@@ -423,3 +515,79 @@ async def get_recent_battles() -> List[Battle]:
     
     print(f"Found {len(battles)} hellgate battles")
     return battles
+
+def sort_teams_ids_by_class(battle:Battle) -> None:
+    battle.team_a_ids = sort_team_ids_by_class(battle.team_a_ids, battle.players)
+    battle.team_b_ids = sort_team_ids_by_class(battle.team_b_ids, battle.players)
+
+def sort_team_ids_by_class(team, players) -> List[str]:
+    healers = []
+    melees = []
+    tanks = []
+    leathers = []
+    cloth = []
+    unknown = []
+
+    for player_id in team:
+        player = players[player_id]
+
+        if is_healer(player):
+            healers.append(player)
+            continue
+
+        if not player.equipment.armor:
+            unknown.append(player)
+            continue
+
+        if "PLATE_ROYAL" in player.equipment.armor or "PLATE_SET1" in player.equipment.armor:
+            melees.append(player)
+
+        elif "PLATE" in player.equipment.armor:
+            tanks.append(player)
+
+        elif "LEATHER" in player.equipment.armor:
+            leathers.append(player)
+
+        else:
+            cloth.append(player)
+
+    try:
+        def key(player): 
+            return player.equipment.mainHand.type
+
+        cloth.sort(key=key)
+        unknown.sort(key=key)
+        tanks.sort(key=key)
+        melees.sort(key=key)
+        leathers.sort(key=key)
+        cloth.sort(key=key)
+        healers.sort(key=key)
+    except Exception as e:
+        print(f"Error sorting players: {e}")
+    return unknown + tanks + melees + leathers + cloth + healers
+
+def is_healer(player:Player) -> bool:
+    weapon = player.equipment.mainHand.type[3:].split('@')[0]
+    return weapon in HEALING_WEAPONS
+
+def clear_covered_battles() -> None:
+    with open(COVERED_BATTLES_JSON_PATH, 'w') as f:
+        json.dump([], f, indent=4)
+
+def clear_equipments_images() -> None:
+    for filename in os.listdir(os.path.join(IMAGE_FOLDER, "equipments")):
+        file_path = os.path.join(os.path.join(IMAGE_FOLDER, "equipments"), filename)
+        try:
+            if ".png" in filename and os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
+
+def clear_battle_reports_images() -> None:
+    for filename in os.listdir(os.path.join(IMAGE_FOLDER, "battle_reports")):
+        file_path = os.path.join(os.path.join(IMAGE_FOLDER, "battle_reports"), filename)
+        try:
+            if ".png" in filename and os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
