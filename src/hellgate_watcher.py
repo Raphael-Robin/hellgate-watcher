@@ -81,8 +81,8 @@ class Battle(TypedDict):
 async def get_battle_reports():
     hellgate_battles = await get_hellgate_battles()
     hellgate_battle_reports = await generate_battle_reports(hellgate_battles)
-    return hellgate_battle_reports.reverse()
-
+    hellgate_battle_reports.reverse()
+    return hellgate_battle_reports
 async def get_hellgate_battles() -> List[Battle]:
     recent_battles = await get_recent_battles()
     hellgate_battles = []
