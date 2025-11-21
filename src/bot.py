@@ -5,7 +5,7 @@ from src.hellgate_watcher import (
     clear_battle_reports_images,
     clear_equipments_images,
     clear_reported_battles,
-    get_current_time_formatted
+    get_current_time_formatted,
 )
 import os
 import json
@@ -13,8 +13,7 @@ from config import (
     CHANNELS_JSON_PATH,
     BOT_COMMAND_PREFIX,
     BATTLE_CHECK_INTERVAL_MINUTES,
-    VERBOSE_LOGGING
-
+    VERBOSE_LOGGING,
 )
 
 
@@ -42,7 +41,9 @@ bot = commands.Bot(command_prefix=BOT_COMMAND_PREFIX, intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f"[{get_current_time_formatted().ljust(20)}]\tLogged in as {bot.user} (ID: {bot.user.id})")
+    print(
+        f"[{get_current_time_formatted().ljust(20)}]\tLogged in as {bot.user} (ID: {bot.user.id})"
+    )
     if not check_for_new_battles.is_running():
         check_for_new_battles.start()
     print(f"[{get_current_time_formatted().ljust(20)}]\tBattle report watcher started.")
@@ -76,10 +77,14 @@ async def setchannel(ctx, channel: discord.TextChannel):
 
 @tasks.loop(minutes=BATTLE_CHECK_INTERVAL_MINUTES)
 async def check_for_new_battles():
-    print(f"[{get_current_time_formatted().ljust(20)}]\tChecking for new battle reports...")
+    print(
+        f"[{get_current_time_formatted().ljust(20)}]\tChecking for new battle reports..."
+    )
     battle_reports = await get_battle_reports()
     if not battle_reports:
-        print(f"[{get_current_time_formatted().ljust(20)}]\tNo new battle reports found.")
+        print(
+            f"[{get_current_time_formatted().ljust(20)}]\tNo new battle reports found."
+        )
         return
 
     channels_map = load_channels()
@@ -95,12 +100,18 @@ async def check_for_new_battles():
     for channel_id in channels_map.values():
         try:
             channel = await bot.fetch_channel(channel_id)
-            print(f"[{get_current_time_formatted().ljust(20)}]\tFound channel '{channel.name}' ({channel_id})")
+            print(
+                f"[{get_current_time_formatted().ljust(20)}]\tFound channel '{channel.name}' ({channel_id})"
+            )
         except discord.NotFound:
-            print(f"[{get_current_time_formatted().ljust(20)}]\tChannel {channel_id} not found. Skipping.")
+            print(
+                f"[{get_current_time_formatted().ljust(20)}]\tChannel {channel_id} not found. Skipping."
+            )
             continue
         except discord.Forbidden:
-            print(f"[{get_current_time_formatted().ljust(20)}]\tNo permission to fetch channel {channel_id}. Skipping.")
+            print(
+                f"[{get_current_time_formatted().ljust(20)}]\tNo permission to fetch channel {channel_id}. Skipping."
+            )
             continue
 
         if channel.permissions_for(channel.guild.me).send_messages:
@@ -125,7 +136,9 @@ async def check_for_new_battles():
             print(
                 f"[{get_current_time_formatted().ljust(20)}]\tNo permission to send messages in channel {channel.name} ({channel_id}). Skipping."
             )
-    print(f"[{get_current_time_formatted().ljust(20)}]\tFinished checking for new battle reports.")
+    print(
+        f"[{get_current_time_formatted().ljust(20)}]\tFinished checking for new battle reports."
+    )
 
 
 @tasks.loop(hours=24)
