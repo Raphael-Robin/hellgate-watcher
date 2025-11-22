@@ -868,19 +868,14 @@ class HellgateWatcher():
             for battle_dict in battles_dicts:
                 player_count = len(battle_dict["players"])
 
-                if player_count == 10:
+                if player_count <= 10:
                     print(f"{battle_dict['id']} found a 10 man battle for {server}",flush=True)
                     battle_events = await self.get_battle_events(battle_dict["id"], server_url)
                     battle = Battle(battle_dict=battle_dict, battle_events=battle_events)
                     if battle.is_hellgate_5v5:
                         recent_battles[server]["5v5"].append(battle)
                         print(f"{battle.id} found a 5v5 battle for {server}",flush=True)
-            
-                elif player_count == 4:
-                    print(f"{battle_dict['id']} found a 4 man battle for {server}",flush=True)
-                    battle_events = await self.get_battle_events(battle_dict["id"], server_url)
-                    battle = Battle(battle_dict=battle_dict, battle_events=battle_events)
-                    if battle.is_hellgate_2v2:
+                    elif battle.is_hellgate_2v2:
                         recent_battles[server]["2v2"].append(battle)
                         print(f"{battle.id} found a 2v2 battle for {server}",flush=True)
 
