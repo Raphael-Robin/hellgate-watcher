@@ -56,7 +56,9 @@ async def on_ready():
 
 
 @commands.has_permissions(administrator=True)
-@bot.tree.command(name="setchannel", description="Sets the channel for hellgate battle reports.")
+@bot.tree.command(
+    name="setchannel", description="Sets the channel for hellgate battle reports."
+)
 @app_commands.describe(
     server="The server to get reports from.",
     mode="The hellgate mode (2v2 or 5v5).",
@@ -80,17 +82,25 @@ async def setchannel(
     channel: discord.TextChannel,
 ):
     if not interaction.guild:
-        await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
+        await interaction.response.send_message(
+            "This command can only be used in a server.", ephemeral=True
+        )
         return
 
     if not channel.permissions_for(interaction.guild.me).send_messages:
-        await interaction.response.send_message("I don't have permissions to send messages in that channel.", ephemeral=True)
+        await interaction.response.send_message(
+            "I don't have permissions to send messages in that channel.", ephemeral=True
+        )
         return
 
     channels_map = load_channels()
-    channels_map.setdefault(server, {}).setdefault(mode, {})[str(interaction.guild.id)] = channel.id
+    channels_map.setdefault(server, {}).setdefault(mode, {})[
+        str(interaction.guild.id)
+    ] = channel.id
     save_channels(channels_map)
-    await interaction.response.send_message(f"Hellgate {mode} reports for **{server.capitalize()}** will now be sent to {channel.mention}.")
+    await interaction.response.send_message(
+        f"Hellgate {mode} reports for **{server.capitalize()}** will now be sent to {channel.mention}."
+    )
 
 
 @tasks.loop(minutes=BATTLE_CHECK_INTERVAL_MINUTES)
