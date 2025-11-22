@@ -294,6 +294,8 @@ class BattleReportImageGenerator:
 
         battle_report_image.save(battle_report_image_path)
 
+        clear_equipments_images()
+
         return battle_report_image_path
 
 
