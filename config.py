@@ -17,7 +17,7 @@ SERVER_URLS = {
 RATE_LIMIT_DELAY_SECONDS = 0.5
 TIMEOUT = 30
 BATTLE_CHECK_INTERVAL_MINUTES = 1
-BATTLES_MAX_AGE_MINUTES = 60
+BATTLES_MAX_AGE_MINUTES = 2
 
 # --------------------------------------------------------------------------------------------------
 # FILE PATHS
@@ -27,8 +27,8 @@ ITEM_IMAGE_FOLDER = "./images/items"
 EQUIPMENT_IMAGE_FOLDER = "./images/equipments"
 BATTLE_REPORT_IMAGE_FOLDER = "./images/battle_reports"
 
-REPORTED_BATTLES_JSON_PATH = "./data/reported_battles_new.json"
-CHANNELS_JSON_PATH = "./data/channels_new.json"
+REPORTED_BATTLES_JSON_PATH = "./data/reported_battles.json"
+CHANNELS_JSON_PATH = "./data/channels.json"
 
 PLAYER_NAME_FONT_PATH = "arialbd.ttf"
 TIMESTAMP_FONT_PATH = "arial.ttf"
@@ -42,7 +42,7 @@ VERBOSE_LOGGING = False
 # --------------------------------------------------------------------------------------------------
 # API REQUEST PARAMETERS
 # --------------------------------------------------------------------------------------------------
-BATTLES_LIMIT = 50
+BATTLES_LIMIT = 20
 
 # --------------------------------------------------------------------------------------------------
 # IMAGE GENERATION SETTINGS
