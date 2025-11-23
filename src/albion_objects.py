@@ -337,6 +337,7 @@ class Event:
         event = f"Event: {self.id} \tKiller: {self.killer.name} \tVictim: {self.victim.name}\n"
         event += f"\tParticipants: {[participant.name for participant in self.participants]}\n"
         event += f"\tGroup Members: {[group_member.name for group_member in self.group_members]}\n"
+        return event
 
 
 class Battle:
