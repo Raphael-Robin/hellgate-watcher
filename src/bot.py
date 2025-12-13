@@ -140,6 +140,12 @@ async def check_for_new_battles():
                             f"[{get_current_time_formatted()}]\tNo permission to fetch channel {channel_id}. Skipping."
                         )
                     continue
+                except Exception as e:
+                    if VERBOSE_LOGGING:
+                        print(
+                            f"[{get_current_time_formatted()}]\tAn error occurred while fetching channel {channel_id}: {e}"
+                        )
+                    continue
 
                 if channel.permissions_for(channel.guild.me).send_messages:
                     battle_reports = []

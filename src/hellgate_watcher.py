@@ -2,7 +2,7 @@ from src.albion_objects import Battle, Item, Equipment
 from src.utils import get_current_time_formatted
 
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict
 import json
 import os
@@ -11,6 +11,7 @@ from config import (
     BATTLES_LIMIT,
     BATTLES_MAX_AGE_MINUTES,
     CANVAS_WIDTH_2V2,
+    MAX_RETRIES,
     RENDER_API_URL,
     EQUIPMENT_IMAGE_FOLDER,
     ITEM_IMAGE_FOLDER,
@@ -302,19 +303,23 @@ class BattleReportImageGenerator:
 class HellgateWatcher:
     @staticmethod
     async def get_json(url: str) -> Dict | None:
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=TIMEOUT)
-        ) as session:
-            try:
-                async with session.get(url) as response:
-                    response.raise_for_status()
-                    return await response.json()
+        json = None
+        tries = 0
+        while tries < MAX_RETRIES:
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=TIMEOUT)
+            ) as session:
+                try:
+                    async with session.get(url) as response:
+                        response.raise_for_status()
+                        json = await response.json()
 
-            except Exception as e:
-                print(
-                    f"[{get_current_time_formatted()}]An error occurred while fetching {url}: {e}"
-                )
-                return None
+                except Exception as e:
+                    print(
+                        f"[{get_current_time_formatted()}]An error occurred while fetching {url}: {e}"
+                    )
+            tries += 1
+            return json
 
     @staticmethod
     async def _get_50_battles(server_url: str, limit=BATTLES_LIMIT, page=1):
@@ -322,10 +327,10 @@ class HellgateWatcher:
         request = (
             f"{server_url}/battles?limit={limit}&sort=recent&offset={page * limit}"
         )
-        response_json = await HellgateWatcher.get_json(request)
+        json = await HellgateWatcher.get_json(request)
 
-        if response_json:
-            battles.extend(list(response_json))
+        if json:
+            battles.extend(list(json))
         return battles
 
     @staticmethod
@@ -333,11 +338,17 @@ class HellgateWatcher:
         if not battles_dicts:
             return False
 
-        times = [
-            datetime.fromisoformat(battle_dict["startTime"].replace("Z", "+00:00"))
-            for battle_dict in battles_dicts
-        ]
-        return max(times) - min(times) > timedelta(minutes=BATTLES_MAX_AGE_MINUTES)
+        for battle_dict in battles_dicts:
+            if HellgateWatcher.is_out_of_range(battle_dict):
+                return True
+        return 
+    
+    @staticmethod
+    def is_out_of_range(battle_dict):
+        start_time = datetime.fromisoformat(battle_dict["startTime"])
+        return datetime.now(timezone.utc) - start_time > timedelta(
+            minutes=BATTLES_MAX_AGE_MINUTES
+        )
 
     @staticmethod
     async def get_recent_battles() -> List[Battle]:
@@ -375,9 +386,16 @@ class HellgateWatcher:
                     battle_events = await HellgateWatcher.get_battle_events(
                         battle_dict["id"], server_url
                     )
-                    battle = Battle(
-                        battle_dict=battle_dict, battle_events=battle_events
-                    )
+                    try:
+                        battle = Battle(
+                            battle_dict=battle_dict, battle_events=battle_events
+                        )
+                    except Exception as e:
+                        print(
+                            f"[{get_current_time_formatted()}]\tAn error occurred while parsing battle {battle_dict['id']}: {e}"
+                        )
+                        continue
+
                     if battle.is_hellgate_5v5:
                         recent_battles[server]["5v5"].append(battle)
                     elif battle.is_hellgate_2v2:
@@ -414,6 +432,11 @@ class HellgateWatcher:
             f"{server_url}/battles/{battle_id}"
         )
         battle_events = await HellgateWatcher.get_battle_events(battle_id, server_url)
+        try:
+            battle = Battle(battle_dict=battle_dict, battle_events=battle_events)
+        except Exception as e:
+            print(f"[{get_current_time_formatted}]\tAn error occurred while parsing battle {battle_id}: {e}")
+            return None    
         return Battle(battle_dict, battle_events)
 
     @staticmethod
