@@ -322,16 +322,15 @@ class HellgateWatcher:
             return json
 
     @staticmethod
-    async def _get_50_battles(server_url: str, limit=BATTLES_LIMIT, page=1):
-        battles = []
+    async def _get_50_battles(server_url: str, limit=BATTLES_LIMIT, page=0):
         request = (
             f"{server_url}/battles?limit={limit}&sort=recent&offset={page * limit}"
         )
         json = await HellgateWatcher.get_json(request)
 
         if json:
-            battles.extend(list(json))
-        return battles
+            return (list(json))
+        return []
 
     @staticmethod
     def _contains_battles_out_of_range(battles_dicts):
@@ -366,8 +365,8 @@ class HellgateWatcher:
             page_number = 0
             battles_dicts = []
             server_url = SERVER_URLS[server]
-            reported_battles = []
             nb_battles_parsed = 0
+            nb_battles_skipped = 0
 
             while not HellgateWatcher._contains_battles_out_of_range(battles_dicts):
                 battles_dicts.extend(
@@ -377,9 +376,10 @@ class HellgateWatcher:
 
             for battle_dict in battles_dicts:
                 if battle_dict["id"] in reported_battles_per_server[server]:
+                    nb_battles_skipped += 1
                     continue
                 else:
-                    reported_battles.append(battle_dict["id"])
+                    reported_battles_per_server[server].append(battle_dict["id"])
                     nb_battles_parsed += 1
 
                 player_count = len(battle_dict["players"])
@@ -403,10 +403,8 @@ class HellgateWatcher:
                     elif battle.is_hellgate_2v2:
                         recent_battles[server]["2v2"].append(battle)
 
-            reported_battles_per_server[server].extend(reported_battles)
-
             print(
-                f"[{get_current_time_formatted()}]\tSERVER: {server.ljust(8)} \tParsed {nb_battles_parsed} battles",
+                f"[{get_current_time_formatted()}]\tSERVER: {server.ljust(8)} \tParsed {nb_battles_parsed} battles \tSkipped {nb_battles_skipped} battles",
                 flush=True,
             )
             print(

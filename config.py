@@ -1,9 +1,9 @@
 # --------------------------------------------------------------------------------------------------
 # API and URLs
 # --------------------------------------------------------------------------------------------------
-BASE_URL_EUROPE = "https://gameinfo-ams.albiononline.com/api/gameinfo"
+BASE_URL_EUROPE =   "https://gameinfo-ams.albiononline.com/api/gameinfo"
 BASE_URL_AMERICAS = "https://gameinfo.albiononline.com/api/gameinfo"
-BASE_URL_ASIA = "https://gameinfo-sgp.albiononline.com/api/gameinfo"
+BASE_URL_ASIA =     "https://gameinfo-sgp.albiononline.com/api/gameinfo"
 RENDER_API_URL = "https://render.albiononline.com/v1/item/"
 SERVER_URLS = {
     "europe": BASE_URL_EUROPE,
@@ -29,6 +29,7 @@ BATTLE_REPORT_IMAGE_FOLDER = "./images/battle_reports"
 
 REPORTED_BATTLES_JSON_PATH = "./data/reported_battles.json"
 CHANNELS_JSON_PATH = "./data/channels.json"
+TEST_CHANNELS_JSON_PATH = "./data/channels_test.json"
 
 PLAYER_NAME_FONT_PATH = "arialbd.ttf"
 TIMESTAMP_FONT_PATH = "arial.ttf"
@@ -42,7 +43,7 @@ VERBOSE_LOGGING = False
 # --------------------------------------------------------------------------------------------------
 # API REQUEST PARAMETERS
 # --------------------------------------------------------------------------------------------------
-BATTLES_LIMIT = 51
+BATTLES_LIMIT = 50
 MAX_RETRIES = 3
 # --------------------------------------------------------------------------------------------------
 # IMAGE GENERATION SETTINGS
