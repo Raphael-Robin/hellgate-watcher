@@ -367,6 +367,7 @@ class HellgateWatcher:
             battles_dicts = []
             server_url = SERVER_URLS[server]
             reported_battles = []
+            nb_battles_parsed = 0
 
             while not HellgateWatcher._contains_battles_out_of_range(battles_dicts):
                 battles_dicts.extend(
@@ -379,6 +380,7 @@ class HellgateWatcher:
                     continue
                 else:
                     reported_battles.append(battle_dict["id"])
+                    nb_battles_parsed += 1
 
                 player_count = len(battle_dict["players"])
 
@@ -404,7 +406,7 @@ class HellgateWatcher:
             reported_battles_per_server[server].extend(reported_battles)
 
             print(
-                f"[{get_current_time_formatted()}]\tSERVER: {server.ljust(8)} \tParsed {len(battles_dicts)} battles",
+                f"[{get_current_time_formatted()}]\tSERVER: {server.ljust(8)} \tParsed {nb_battles_parsed} battles",
                 flush=True,
             )
             print(
@@ -466,3 +468,5 @@ def clear_reported_battles():
     reported_battles = HellgateWatcher.load_json(REPORTED_BATTLES_JSON_PATH)
     for server in reported_battles:
         reported_battles[server] = []
+    HellgateWatcher.save_json(REPORTED_BATTLES_JSON_PATH, reported_battles)
+

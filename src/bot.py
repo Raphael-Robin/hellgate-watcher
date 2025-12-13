@@ -185,7 +185,7 @@ async def check_for_new_battles():
     )
 
 
-@tasks.loop(hours=24)
+@tasks.loop(hours=2)
 async def clear_storage():
     print(f"[{get_current_time_formatted()}]\tClearing storage...")
     clear_battle_reports_images()
