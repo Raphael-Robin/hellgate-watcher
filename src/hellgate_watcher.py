@@ -362,12 +362,12 @@ class HellgateWatcher:
         }
 
         for server in ["europe", "americas", "asia"]:
-            page_number = 0
-            battles_dicts = []
             server_url = SERVER_URLS[server]
             nb_battles_parsed = 0
             nb_battles_skipped = 0
 
+            battles_dicts = await HellgateWatcher._get_50_battles(server_url, page=0)
+            page_number = 1
             while not HellgateWatcher._contains_battles_out_of_range(battles_dicts):
                 battles_dicts.extend(
                     await HellgateWatcher._get_50_battles(server_url, page=page_number)
