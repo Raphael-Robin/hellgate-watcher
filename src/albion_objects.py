@@ -343,7 +343,9 @@ class Event:
 class Battle:
     def __init__(self, battle_dict: dict, battle_events: List[dict]):
         if battle_events is None:
-            raise ValueError(f"[{get_current_time_formatted}]\t Error: \t{battle_dict['id']} battle_events cannot be None")
+            raise ValueError(
+                f"[{get_current_time_formatted}]\t Error: \t{battle_dict['id']} battle_events cannot be None"
+            )
 
         self.id: int = battle_dict["id"]
         self.start_time: str = battle_dict["startTime"]

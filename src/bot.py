@@ -47,10 +47,10 @@ async def on_ready():
         f"[{get_current_time_formatted()}]\tLogged in as {bot.user} (ID: {bot.user.id})"
     )
     await bot.tree.sync()
-    if not send_battle_reports.is_running():
-        send_battle_reports.start()
     if not clear_storage.is_running():
         clear_storage.start()
+    if not send_battle_reports.is_running():
+        send_battle_reports.start()
     print(f"[{get_current_time_formatted()}]\tBattle report watcher started.")
 
 
@@ -126,7 +126,6 @@ async def send_battle_reports():
                         )
                         continue
     print(f"[{get_current_time_formatted()}]\tfinished sending out battle reports")
-
 
 @tasks.loop(hours=2)
 async def clear_storage():

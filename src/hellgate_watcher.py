@@ -329,7 +329,7 @@ class HellgateWatcher:
         json = await HellgateWatcher.get_json(request)
 
         if json:
-            return (list(json))
+            return list(json)
         return []
 
     @staticmethod
@@ -340,8 +340,8 @@ class HellgateWatcher:
         for battle_dict in battles_dicts:
             if HellgateWatcher.is_out_of_range(battle_dict):
                 return True
-        return 
-    
+        return
+
     @staticmethod
     def is_out_of_range(battle_dict):
         start_time = datetime.fromisoformat(battle_dict["startTime"])
@@ -435,9 +435,11 @@ class HellgateWatcher:
         try:
             battle = Battle(battle_dict=battle_dict, battle_events=battle_events)
         except Exception as e:
-            print(f"[{get_current_time_formatted}]\tAn error occurred while parsing battle {battle_id}: {e}")
-            return None    
-        return Battle(battle_dict, battle_events)
+            print(
+                f"[{get_current_time_formatted}]\tAn error occurred while parsing battle {battle_id}: {e}"
+            )
+            return None
+        return battle
 
     @staticmethod
     def load_json(json_path: str) -> Dict:
@@ -467,4 +469,3 @@ def clear_reported_battles():
     for server in reported_battles:
         reported_battles[server] = []
     HellgateWatcher.save_json(REPORTED_BATTLES_JSON_PATH, reported_battles)
-

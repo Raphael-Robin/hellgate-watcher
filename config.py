@@ -1,9 +1,9 @@
 # --------------------------------------------------------------------------------------------------
 # API and URLs
 # --------------------------------------------------------------------------------------------------
-BASE_URL_EUROPE =   "https://gameinfo-ams.albiononline.com/api/gameinfo"
+BASE_URL_EUROPE = "https://gameinfo-ams.albiononline.com/api/gameinfo"
 BASE_URL_AMERICAS = "https://gameinfo.albiononline.com/api/gameinfo"
-BASE_URL_ASIA =     "https://gameinfo-sgp.albiononline.com/api/gameinfo"
+BASE_URL_ASIA = "https://gameinfo-sgp.albiononline.com/api/gameinfo"
 RENDER_API_URL = "https://render.albiononline.com/v1/item/"
 SERVER_URLS = {
     "europe": BASE_URL_EUROPE,
