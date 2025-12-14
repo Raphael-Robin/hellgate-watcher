@@ -47,8 +47,10 @@ async def on_ready():
         f"[{get_current_time_formatted()}]\tLogged in as {bot.user} (ID: {bot.user.id})"
     )
     await bot.tree.sync()
-    if not check_for_new_battles.is_running():
-        check_for_new_battles.start()
+    if not send_battle_reports.is_running():
+        send_battle_reports.start()
+    if not clear_storage.is_running():
+        clear_storage.start()
     print(f"[{get_current_time_formatted()}]\tBattle report watcher started.")
 
 
@@ -102,92 +104,99 @@ async def setchannel(
         f"Hellgate {mode} reports for **{server.capitalize()}** will now be sent to {channel.mention}."
     )
 
-
 @tasks.loop(minutes=BATTLE_CHECK_INTERVAL_MINUTES)
-async def check_for_new_battles():
-    print(f"[{get_current_time_formatted()}]\tChecking for new battle reports...")
-    recent_hellgates = await HellgateWatcher.get_recent_battles()
-
-    channels_per_server = load_channels()
+async def send_battle_reports():
+    print(f"[{get_current_time_formatted()}]\tStarted looking for new battle reports...")
+    battles = await HellgateWatcher.get_recent_battles()
+    battle_reports = await get_battle_reports(battles)
+    channels = await get_verified_channels()
 
     for server in ["europe", "americas", "asia"]:
-        if server not in channels_per_server:
-            continue
-        server_channels = channels_per_server.get(server, {})
         for mode in ["5v5", "2v2"]:
-            if mode not in server_channels:
-                continue
-            channels_map = server_channels.get(mode, {})
-            if not recent_hellgates[server][mode]:
-                continue
-
-            for channel_id in channels_map.values():
-                try:
-                    channel = await bot.fetch_channel(channel_id)
-                    if VERBOSE_LOGGING:
+            for battle in battle_reports[server][mode]:
+                for channel in channels[server][mode]:
+                    try:
+                        await channel.send(file=discord.File(battle))
                         print(
-                            f"[{get_current_time_formatted()}]\tFound channel '{channel.name}' ({channel_id})"
+                            f"[{get_current_time_formatted()}]\tSent battle report to {channel.name}"
                         )
-                except discord.NotFound:
-                    if VERBOSE_LOGGING:
+                    except Exception as e:
                         print(
-                            f"[{get_current_time_formatted()}]\tChannel {channel_id} not found. Skipping."
+                            f"[{get_current_time_formatted()}]\tAn error occurred while sending battle report: {e}"
                         )
-                    continue
-                except discord.Forbidden:
-                    if VERBOSE_LOGGING:
-                        print(
-                            f"[{get_current_time_formatted()}]\tNo permission to fetch channel {channel_id}. Skipping."
-                        )
-                    continue
-                except Exception as e:
-                    if VERBOSE_LOGGING:
-                        print(
-                            f"[{get_current_time_formatted()}]\tAn error occurred while fetching channel {channel_id}: {e}"
-                        )
-                    continue
-
-                if channel.permissions_for(channel.guild.me).send_messages:
-                    battle_reports = []
-
-                    if mode == "5v5":
-                        battle_reports = await BattleReportImageGenerator.generate_battle_reports_5v5(
-                            recent_hellgates[server][mode]
-                        )
-                    elif mode == "2v2":
-                        battle_reports = await BattleReportImageGenerator.generate_battle_reports_2v2(
-                            recent_hellgates[server][mode]
-                        )
-
-                    for battle_report_path in battle_reports:
-                        try:
-                            with open(battle_report_path, "rb") as f:
-                                file_name = os.path.basename(battle_report_path)
-                                battle_report = discord.File(f, filename=file_name)
-                                await channel.send(file=battle_report)
-                                print(
-                                    f"[{get_current_time_formatted()}]\tSent battle report ({file_name}) to channel {channel.name} ({channel_id})"
-                                )
-                        except FileNotFoundError:
-                            print(
-                                f"[{get_current_time_formatted()}]\tError: Battle report file not found at {battle_report_path}"
-                            )
-                        except discord.HTTPException as e:
-                            print(
-                                f"[{get_current_time_formatted()}]\tError sending message to channel {channel.name} ({channel_id}): {e}"
-                            )
-                else:
-                    print(
-                        f"[{get_current_time_formatted()}]\tNo permission to send messages in channel {channel.name} ({channel_id}). Skipping."
-                    )
-    print(
-        f"[{get_current_time_formatted()}]\tFinished checking for new battle reports."
-    )
+                        continue
+    print(f"[{get_current_time_formatted()}]\tfinished sending out battle reports")
 
 
 @tasks.loop(hours=2)
 async def clear_storage():
     print(f"[{get_current_time_formatted()}]\tClearing storage...")
     clear_battle_reports_images()
+    print(f"[{get_current_time_formatted()}]\tCleared battle reports...")
     clear_equipments_images()
+    print(f"[{get_current_time_formatted()}]\tCleared equipment images...")
     clear_reported_battles()
+    print(f"[{get_current_time_formatted()}]\tClearing reported battles json...")
+
+async def get_battle_reports(battles):
+    battle_reports = {}
+    for server in ["europe", "americas", "asia"]:
+        battle_reports[server] = {}
+        if "5v5" in battles[server]:
+            battle_reports[server]["5v5"] = [await BattleReportImageGenerator.generate_battle_report_5v5(battle) for battle in battles[server]["5v5"]] 
+        if "2v2" in battles[server]:
+            battle_reports[server]["2v2"] = [await BattleReportImageGenerator.generate_battle_report_2v2(battle) for battle in battles[server]["2v2"]] 
+    return battle_reports
+
+async def get_verified_channels():
+    channels_map = load_channels()
+    verified_channels = {}
+    for server in ["europe", "americas", "asia"]:
+        if server not in channels_map:
+            continue
+        verified_channels[server] = {}
+        for mode in ["5v5", "2v2"]:
+            if mode not in channels_map[server]:
+                continue
+            verified_channels[server][mode] = []
+
+            for channel_id in channels_map[server][mode].values():
+                channel = await verify_channel(channel_id)
+                if channel:
+                    verified_channels[server][mode].append(channel)
+    return verified_channels
+
+async def verify_channel(channel_id) -> discord.TextChannel | None:
+    try:
+        channel = await bot.fetch_channel(channel_id)
+        if VERBOSE_LOGGING:
+            print(
+                f"[{get_current_time_formatted()}]\tFound channel '{channel.name}' ({channel_id})"
+            )
+    except discord.NotFound:
+        if VERBOSE_LOGGING:
+            print(
+                f"[{get_current_time_formatted()}]\tChannel {channel_id} not found. Skipping."
+            )
+        return None
+    except discord.Forbidden:
+        if VERBOSE_LOGGING:
+            print(
+                f"[{get_current_time_formatted()}]\tNo permission to fetch channel {channel_id}. Skipping."
+            )
+        return None
+    except Exception as e:
+        if VERBOSE_LOGGING:
+            print(
+                f"[{get_current_time_formatted()}]\tAn error occurred while fetching channel {channel_id}: {e}"
+            )
+        return None
+
+    if not channel.permissions_for(channel.guild.me).send_messages:
+        print(
+            f"[{get_current_time_formatted()}]\tNo permission to send messages in channel {channel.name} ({channel_id}). Skipping."
+        )
+        return None
+    
+    return channel
+

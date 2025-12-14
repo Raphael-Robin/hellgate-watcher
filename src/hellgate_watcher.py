@@ -350,7 +350,7 @@ class HellgateWatcher:
         )
 
     @staticmethod
-    async def get_recent_battles() -> List[Battle]:
+    async def get_recent_battles() -> Dict[str, Dict[str, List[Battle]]]:
         reported_battles_per_server = HellgateWatcher.load_json(
             REPORTED_BATTLES_JSON_PATH
         )
