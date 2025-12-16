@@ -100,7 +100,7 @@ class BattleReportImageGenerator:
         if os.path.exists(item_image_path):
             return item_image_path
 
-        url = f"{RENDER_API_URL}T{item.tier}_{item.type}@{item.enchantment}.png?count=1&quality={item.enchantment}"
+        url = f"{RENDER_API_URL}T{item.tier}_{item.type}@{item.enchantment}.png?count=1&quality={item.quality}"
 
         image = await BattleReportImageGenerator.get_image(url)
         if not image:
