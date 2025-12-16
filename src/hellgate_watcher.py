@@ -372,6 +372,8 @@ class HellgateWatcher:
                 battles_dicts.extend(
                     await HellgateWatcher._get_50_battles(server_url, page=page_number)
                 )
+                if battles_dicts == []:
+                    break
                 page_number += 1
 
             for battle_dict in battles_dicts:
