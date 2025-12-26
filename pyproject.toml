@@ -10,6 +10,7 @@ dependencies = [
     "ipynb>=0.5.1",
     "discord>=2.3.2",
     "dotenv>=0.9.9",
+    "uv>=0.9.18",
 ]
 
 [dependency-groups]
