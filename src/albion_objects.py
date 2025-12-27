@@ -341,8 +341,8 @@ class Event:
 
 
 class Battle:
-    def __init__(self, battle_dict: dict, battle_events: List[dict]):
-        if battle_events is None:
+    def __init__(self, battle_dict: dict):
+        if not "battle_events" in battle_dict or battle_dict["battle_events"] is None:
             raise ValueError(
                 f"[{get_current_time_formatted}]\t Error: \t{battle_dict['id']} battle_events cannot be None"
             )
@@ -350,7 +350,7 @@ class Battle:
         self.id: int = battle_dict["id"]
         self.start_time: str = battle_dict["startTime"]
         self.end_time: str = battle_dict["endTime"]
-        self.events: List[Event] = [Event(event_dict) for event_dict in battle_events]
+        self.events: List[Event] = [Event(event_dict) for event_dict in battle_dict["battle_events"]]
         self.victim_ids: List[str] = [event.victim.id for event in self.events]
 
         self.players: List[Player] = []
@@ -510,6 +510,10 @@ class Battle:
             team_a_ids.update(all_player_ids - team_b_ids)
             team_b_ids = all_player_ids - team_a_ids
 
+        if team_a_ids.issubset(set(self.victim_ids)):
+            team_a_ids, team_b_ids = team_b_ids, team_a_ids
+
+
         self.team_a_ids = list(team_a_ids)
         self.team_b_ids = list(team_b_ids)
 
@@ -517,7 +521,7 @@ class Battle:
         for player in self.players:
             if player.id == id:
                 return player
-        return None
+        raise ValueError(f"Player with id {id} not found")
 
     def _sort_teams_by_class(self) -> None:
         self.team_a_ids = self._sort_team(self.team_a_ids)
@@ -531,44 +535,46 @@ class Battle:
         cloth = []
         unknown = []
 
-        for player_id in team:
-            player = self.get_player(player_id)
+        # Initialize player_id_to_player_map for efficient lookup
+        player_id_to_player_map = {p.id: p for p in self.players}
 
-            if (
-                player.equipment.mainhand is not None
-                and player.equipment.mainhand.is_healing_weapon
-            ):
+        for player_id in team:
+            player = player_id_to_player_map.get(player_id)
+
+            if not player or player.equipment.mainhand is None:
+                continue 
+
+            if player.equipment.mainhand.is_healing_weapon:
                 healers.append(player_id)
                 continue
 
-            if player.equipment.armor is not None:
-                if player.equipment.armor.is_plate:
-                    if (
-                        "ROYAL" in player.equipment.armor.type
-                        or "SET1" in player.equipment.armor.type
-                    ):
-                        melees.append(player_id)
-                        continue
-
-                    tanks.append(player_id)
-                    continue
-
-                if player.equipment.armor.is_leather:
-                    leathers.append(player_id)
-                    continue
-
-                if player.equipment.armor.is_cloth:
-                    cloth.append(player_id)
-                    continue
-
-            else:
+            if player.equipment.armor is None:
                 unknown.append(player_id)
                 continue
 
+            if player.equipment.armor.is_plate:
+                if ("ROYAL" in player.equipment.armor.type or 
+                    "SET1" in player.equipment.armor.type):
+                    melees.append(player_id)
+                    continue
+                else:
+                    tanks.append(player_id)
+                    continue
+
+            if player.equipment.armor.is_leather:
+                leathers.append(player_id)
+                continue
+
+            if player.equipment.armor.is_cloth:
+                cloth.append(player_id)
+                continue
+
         def key(player_id):
-            if self.get_player(player_id).equipment.mainhand is None:
-                return "Z"
-            return self.get_player(player_id).equipment.mainhand.type
+            player = player_id_to_player_map.get(player_id)
+            if player and player.equipment.mainhand:
+                return player.equipment.mainhand.type
+            # Fallback for players without mainhand or if player not found
+            return "Z"
 
         cloth.sort(key=key)
         unknown.sort(key=key)
@@ -587,7 +593,7 @@ class Battle:
                 event.participants + event.group_members + [event.killer, event.victim]
             )
             for player in all_players:
-                if self.get_player(player.id) is None:
-                    self.players.append(player)
-                else:
+                try:
                     self.get_player(player.id).update(player)
+                except ValueError:
+                    self.players.append(player)

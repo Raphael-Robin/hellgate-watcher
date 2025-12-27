@@ -7,7 +7,10 @@ DISCORDTOKEN = os.getenv("DISCORDTOKEN")
 
 
 def main():
-    bot.run(DISCORDTOKEN)
+    if DISCORDTOKEN:
+        bot.run(DISCORDTOKEN)
+    else:
+        raise Exception("Missing DISCORDTOKEN environment variable")
 
 
 if __name__ == "__main__":

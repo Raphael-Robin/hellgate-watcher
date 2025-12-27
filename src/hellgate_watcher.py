@@ -156,7 +156,7 @@ class BattleReportImageGenerator:
 
     @staticmethod
     async def _generate_battle_report(
-        battle: Battle, canvas_width: int, battle_report_canvas_size: int
+        battle: Battle, canvas_width: int, battle_report_canvas_size: tuple[int,int]
     ) -> str:
         battle_report_image = Image.new(
             "RGB", battle_report_canvas_size, BACKGROUND_COLOR
@@ -391,9 +391,8 @@ class HellgateWatcher:
                         battle_dict["id"], server_url
                     )
                     try:
-                        battle = Battle(
-                            battle_dict=battle_dict, battle_events=battle_events
-                        )
+                        battle_dict["battle_events"] = battle_events
+                        battle = Battle(battle_dict)
                     except Exception as e:
                         print(
                             f"[{get_current_time_formatted()}]\tAn error occurred while parsing battle {battle_dict['id']}: {e}"
@@ -426,16 +425,19 @@ class HellgateWatcher:
 
     @staticmethod
     async def get_battle_events(battle_id: int, server_url: str) -> List[dict]:
-        return await HellgateWatcher.get_json(f"{server_url}/events/battle/{battle_id}")
+        return await HellgateWatcher.get_json(f"{server_url}/events/battle/{battle_id}") # type: ignore
 
     @staticmethod
-    async def get_battle_from_id(battle_id: int, server_url: str) -> Battle:
+    async def get_battle_from_id(battle_id: int, server_url: str) -> Battle | None:
         battle_dict = await HellgateWatcher.get_json(
             f"{server_url}/battles/{battle_id}"
         )
+        if not battle_dict:
+            return None
         battle_events = await HellgateWatcher.get_battle_events(battle_id, server_url)
         try:
-            battle = Battle(battle_dict=battle_dict, battle_events=battle_events)
+            battle_dict["battle_events"] = battle_events
+            battle = Battle(battle_dict)
         except Exception as e:
             print(
                 f"[{get_current_time_formatted}]\tAn error occurred while parsing battle {battle_id}: {e}"
