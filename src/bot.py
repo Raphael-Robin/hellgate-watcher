@@ -44,7 +44,7 @@ bot = commands.Bot(command_prefix=BOT_COMMAND_PREFIX, intents=intents)
 @bot.event
 async def on_ready():
     print(
-        f"[{get_current_time_formatted()}]\tLogged in as {bot.user} (ID: {bot.user.id})"
+        f"[{get_current_time_formatted()}]\tLogged in as {bot.user} (ID: {bot.user.id})" # type: ignore
     )
     await bot.tree.sync()
     if not clear_storage.is_running():
@@ -170,7 +170,7 @@ async def verify_channel(channel_id) -> discord.TextChannel | None:
         channel = await bot.fetch_channel(channel_id)
         if VERBOSE_LOGGING:
             print(
-                f"[{get_current_time_formatted()}]\tFound channel '{channel.name}' ({channel_id})"
+                f"[{get_current_time_formatted()}]\tFound channel '{channel.name}' ({channel_id})" # type: ignore
             )
     except discord.NotFound:
         if VERBOSE_LOGGING:
