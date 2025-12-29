@@ -17,11 +17,6 @@ db = client["hellgate_watcher"]
 
 # --- Pydantic Models for Database ---
 
-class DBItem(BaseModel):
-    item_type: str
-    tier: int
-    enchantment: int
-
 class DBEquipment(BaseModel):
     """Stores the unique combination of items as a 'Build'"""
     id: str = Field(alias="_id")  # equipment_hash_id
@@ -45,7 +40,6 @@ class DBEquipment(BaseModel):
             Slot.Shoes.value: {"Type": f"T7_{self.shoes}", "Quality": 4} if self.shoes else None,
             Slot.Cape.value: {"Type": f"T7_{self.cape}", "Quality": 4} if self.cape else None,
         }
-        print(equipment_dict,flush=True)
         return Equipment(equipment_dict)
 
 class DBPlayer(BaseModel):
@@ -54,17 +48,18 @@ class DBPlayer(BaseModel):
     name: str
     first_seen: datetime
     last_seen: datetime
-    total_wins: int = 0
-    total_losses: int = 0
+    nb_battles: int = 0
+    nb_wins: int = 0
+    nb_losses: int = 0
     server: str
 
 class DBTeam(BaseModel):
     """Tracks consistency of specific 5-man or 2-man rosters"""
     id: str = Field(alias="_id")  # player_ids_hash
     player_ids: List[str]
-    nb_seen: int = 0
-    wins: int = 0
-    losses: int = 0
+    nb_battles: int = 0
+    nb_wins: int = 0
+    nb_losses: int = 0
 
 class DBPlayer_Equipment_Use(BaseModel):
     """Tracks how many times a specific player used a specific build"""
@@ -175,7 +170,7 @@ def save_data_from_battle(battle: Battle, server: str):
             {"_id": team_hash},
             {
                 "$setOnInsert": {"player_ids": ids},
-                "$inc": {"nb_seen": 1, "wins": 1 if won else 0, "losses": 0 if won else 1},
+                "$inc": {"nb_battles": 1, "nb_wins": 1 if won else 0, "nb_losses": 0 if won else 1},
                 "$set": {"last_seen": battle_time}
             },
             upsert=True
@@ -197,7 +192,7 @@ def save_data_from_battle(battle: Battle, server: str):
             {
                 "$set": {"name": player_obj.name, "last_seen": battle_time},
                 "$setOnInsert": {"first_seen": battle_time, "server": server},
-                "$inc": {"total_wins": 1 if won else 0, "total_losses": 0 if won else 1}
+                "$inc": {"nb_wins": 1 if won else 0, "nb_losses": 0 if won else 1, "nb_battles": 1}
             },
             upsert=True
         )
@@ -306,11 +301,11 @@ def setup_database():
     # 2. Define Indexes (Crucial for performance)
     print("Applying indexes...", flush=True)
     db.battles.create_index([("all_player_ids", 1), ("datetime", -1)])
-    db.players.create_index([("name", 1)])
+    db.players.create_index([("nb_battles",-1)])
+    db.players.create_index([("name",1)])
+    db.teams.create_index([("player_ids", 1), ("wins", -1)])
     db.player_relationships.create_index([("players", 1), ("nb_shared_battles", -1)])
     db.player_equipment_uses.create_index([("player_id", 1), ("nb_uses", -1)])
-    
-    # Trend index for fast meta-analysis
     db.item_trends.create_index([("metadata.item_type", 1), ("timestamp", -1)])
 
     print("Database setup complete!", flush=True)
@@ -336,7 +331,7 @@ def get_most_played_builds(player_id: str, limit_number = 5) -> List[DBPlayer_Eq
         result.append(DBPlayer_Equipment_Use(**doc))
     return result
 
-def get_most_common_relationships(player_id: str, limit_number = 10) -> List[DBPlayer_Relationship] | None:
+def get_most_common_relationships(player_id: str, limit_number = 4) -> List[DBPlayer_Relationship] | None:
     relationships: List[DBPlayer_Relationship] = []
     for doc in db.player_relationships.find({"players": player_id}).sort("nb_shared_battles", -1).limit(limit_number):
         relationships.append(DBPlayer_Relationship(**doc))
@@ -357,9 +352,9 @@ def get_team_by_hash(team_hash: str) -> DBTeam | None:
 def get_player_statistics(player: DBPlayer) -> Dict | None:
     
     player_stats = {
-        "total_wins": player.total_wins,
-        "total_losses": player.total_losses,
-        "total_games": player.total_wins + player.total_losses,
+        "nb_wins": player.nb_wins,
+        "nb_losses": player.nb_losses,
+        "nb_battles": player.nb_battles,
         "first_seen": player.first_seen,
         "last_seen": player.last_seen,
     }
@@ -383,3 +378,15 @@ def get_player_statistics(player: DBPlayer) -> Dict | None:
     }
 
     return result
+
+def get_most_active_players(limit_number = 10) -> List[DBPlayer] | None:
+    players: List[DBPlayer] = []
+    for doc in db.players.find().sort("nb_battles", -1).limit(limit_number):
+        players.append(DBPlayer(**doc))
+    return players
+
+def get_most_active_teams(limit_number = 10) -> List[DBTeam] | None:
+    teams: List[DBTeam] = []
+    for doc in db.teams.find().sort("wins", -1).limit(limit_number):
+        teams.append(DBTeam(**doc))
+    return teams
