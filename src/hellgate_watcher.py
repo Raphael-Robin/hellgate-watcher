@@ -1,7 +1,7 @@
 import asyncio
-from src.database import save_data_from_battle
+from src.database import is_battle_new, save_data_from_battle5v5
 from src.albion_objects import Battle, Item, Equipment
-from src.utils import get_current_time_formatted
+from src.utils import logger
 
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from datetime import datetime, timedelta, timezone
@@ -123,9 +123,7 @@ class BattleReportImageGenerator:
                     return await response.read()
 
             except Exception as e:
-                print(
-                    f"[{get_current_time_formatted()}]\tAn error occurred while fetching {url}: {e}"
-                )
+                logger.error(f"An error occurred while fetching {url}: {e}")
                 return None
 
     @staticmethod
@@ -141,9 +139,7 @@ class BattleReportImageGenerator:
                         return await response.json()
 
                 except Exception as e:
-                    print(
-                        f"[{get_current_time_formatted()}]\tAn error occurred while fetching {url}: {e}"
-                    )
+                    logger.error(f"An error occurred while fetching {url}: {e}")
                 attempt += 1
         return None
 
@@ -161,7 +157,7 @@ class BattleReportImageGenerator:
 
     @staticmethod
     async def _generate_battle_report(
-        battle: Battle, canvas_width: int, battle_report_canvas_size: tuple[int,int]
+        battle: Battle, canvas_width: int, battle_report_canvas_size: tuple[int, int]
     ) -> str:
         battle_report_image = Image.new(
             "RGB", battle_report_canvas_size, BACKGROUND_COLOR
@@ -294,9 +290,7 @@ class BattleReportImageGenerator:
             f"{BATTLE_REPORT_IMAGE_FOLDER}/battle_report_{battle.id}.png"
         )
 
-        print(
-            f"[{get_current_time_formatted()}]\tgenerating {battle_report_image_path}"
-        )
+        logger.info(f"saving battle report image to {battle_report_image_path}")
 
         battle_report_image.save(battle_report_image_path)
 
@@ -320,9 +314,7 @@ class HellgateWatcher:
                         json = await response.json()
 
                 except Exception as e:
-                    print(
-                        f"[{get_current_time_formatted()}]An error occurred while fetching {url}: {e}"
-                    )
+                    logger.error(f"An error occurred while fetching {url}: {e}")
             tries += 1
             return json
 
@@ -338,17 +330,21 @@ class HellgateWatcher:
         return []
 
     @staticmethod
-    def _contains_battles_out_of_range(battles_dicts,range_minutes=BATTLES_MAX_AGE_MINUTES):
+    def _contains_battles_out_of_range(
+        battles_dicts, range_minutes=BATTLES_MAX_AGE_MINUTES
+    ):
         if not battles_dicts:
             return False
 
         for battle_dict in battles_dicts:
-            if HellgateWatcher.is_out_of_range(battle_dict,range_minutes=range_minutes):
+            if HellgateWatcher.is_out_of_range(
+                battle_dict, range_minutes=range_minutes
+            ):
                 return True
         return
 
     @staticmethod
-    def is_out_of_range(battle_dict,range_minutes=BATTLES_MAX_AGE_MINUTES):
+    def is_out_of_range(battle_dict, range_minutes=BATTLES_MAX_AGE_MINUTES):
         start_time = datetime.fromisoformat(battle_dict["startTime"])
         return datetime.now(timezone.utc) - start_time > timedelta(
             minutes=range_minutes
@@ -356,10 +352,6 @@ class HellgateWatcher:
 
     @staticmethod
     async def get_recent_battles() -> Dict[str, Dict[str, List[Battle]]]:
-        reported_battles_per_server = HellgateWatcher.load_json(
-            REPORTED_BATTLES_JSON_PATH
-        )
-
         recent_battles = {
             "europe": {"5v5": [], "2v2": [], "total": 0},
             "americas": {"5v5": [], "2v2": [], "total": 0},
@@ -382,134 +374,107 @@ class HellgateWatcher:
                 page_number += 1
 
             for battle_dict in battles_dicts:
-                if battle_dict["id"] in reported_battles_per_server[server]:
+                battle_id = battle_dict["id"]
+
+                if not is_battle_new(battle_id):
                     nb_battles_skipped += 1
                     continue
-                else:
-                    reported_battles_per_server[server].append(battle_dict["id"])
-                    nb_battles_parsed += 1
 
+                nb_battles_parsed += 1
                 player_count = len(battle_dict["players"])
 
                 if player_count <= 10:
                     battle_events = await HellgateWatcher.get_battle_events(
-                        battle_dict["id"], server_url
+                        battle_id, server_url
                     )
                     try:
                         battle_dict["battle_events"] = battle_events
                         battle = Battle(battle_dict)
                     except Exception as e:
-                        print(
-                            f"[{get_current_time_formatted()}]\tAn error occurred while parsing battle {battle_dict['id']}: {e}"
+                        logger.error(
+                            f"An error occurred while parsing battle {battle_dict['id']}: {e}"
                         )
                         continue
 
                     if battle.is_hellgate_5v5:
                         recent_battles[server]["5v5"].append(battle)
+                        save_data_from_battle5v5(battle=battle, server=server)
                     elif battle.is_hellgate_2v2:
                         recent_battles[server]["2v2"].append(battle)
 
-            print(
-                f"[{get_current_time_formatted()}]\tSERVER: {server.ljust(8)} \tParsed {nb_battles_parsed} battles \tSkipped {nb_battles_skipped} battles",
-                flush=True,
+            logger.info(
+                f"SERVER: {server.ljust(8)} \tParsed {nb_battles_parsed} battles \tSkipped {nb_battles_skipped} battles"
             )
-            print(
-                f"[{get_current_time_formatted()}]\tSERVER: {server.ljust(8)} \tFound {len(recent_battles[server]['5v5'])} 5v5 Hellgate Battles",
-                flush=True,
+            logger.info(
+                f"SERVER: {server.ljust(8)} \tFound {len(recent_battles[server]['5v5'])} 5v5 Hellgate Battles"
             )
-            print(
-                f"[{get_current_time_formatted()}]\tSERVER: {server.ljust(8)} \tFound {len(recent_battles[server]['2v2'])} 2v2 Hellgate Battles",
-                flush=True,
+            logger.info(
+                f"SERVER: {server.ljust(8)} \tFound {len(recent_battles[server]['2v2'])} 2v2 Hellgate Battles"
             )
-
-        HellgateWatcher.save_json(
-            REPORTED_BATTLES_JSON_PATH, reported_battles_per_server
-        )
 
         return recent_battles
 
-    
     @staticmethod
-    async def get_battles_5v5(max_lookback_minutes: int,servers: List[str]=["europe", "americas", "asia"]) -> Dict[str, Dict[str, List[Battle]]]:
-        reported_battles_per_server = HellgateWatcher.load_json(
-            REPORTED_BATTLES_JSON_PATH
-        )
-
-        recent_battles = {
-            "europe": {"5v5": [], "total": 0},
-            "americas": {"5v5": [], "total": 0},
-            "asia": {"5v5": [], "total": 0},
-        }
-
+    async def save_battles_5v5(
+        max_lookback_minutes: int, servers: List[str] = ["europe", "americas", "asia"]
+    ) -> None:
         for server in servers:
             server_url = SERVER_URLS[server]
-            nb_battles_parsed = 0
-            nb_battles_skipped = 0
 
             battles_dicts = await HellgateWatcher._get_50_battles(server_url, page=0)
             page_number = 1
-            while not HellgateWatcher._contains_battles_out_of_range(battles_dicts,range_minutes=max_lookback_minutes):
+            logger.info(
+                f"fetched {len(battles_dicts)} battles from {page_number} pages"
+            )
+            while not HellgateWatcher._contains_battles_out_of_range(
+                battles_dicts, range_minutes=max_lookback_minutes
+            ):
                 battles_dicts.extend(
                     await HellgateWatcher._get_50_battles(server_url, page=page_number)
                 )
-                print(f"fetched {len(battles_dicts)} battles from {page_number} pages",flush=True)
-                await asyncio.sleep(.2)
+                await asyncio.sleep(0.2)
                 if battles_dicts == []:
                     break
                 page_number += 1
 
-                if page_number >= 200:
+                logger.info(
+                    f"fetched {len(battles_dicts)} battles from {page_number} pages"
+                )
+                if page_number >= 199:
                     break
 
-
-            for battle_dict in battles_dicts:
-                if battle_dict["id"] in reported_battles_per_server[server]:
-                    nb_battles_skipped += 1
-                    continue
-                else:
-                    reported_battles_per_server[server].append(battle_dict["id"])
-                    nb_battles_parsed += 1
+            nb_battles = len(battles_dicts)
+            for index in range(nb_battles):
+                battle_dict = battles_dicts[index]
 
                 player_count = len(battle_dict["players"])
 
-                if 9 <= player_count <= 10:
-                    battle_events = await HellgateWatcher.get_battle_events(
-                        battle_dict["id"], server_url
+                if not 9 <= player_count <= 11:
+                    continue
+
+                battle_events = await HellgateWatcher.get_battle_events(
+                    battle_dict["id"], server_url
+                )
+                await asyncio.sleep(0.2)
+                logger.info(
+                    f"[{str(index + 1).rjust(4, '0')} / {str(nb_battles).rjust(4, '0')}] fetching battle events for battle: {battle_dict['id']}"
+                )
+                try:
+                    battle_dict["battle_events"] = battle_events
+                    battle = Battle(battle_dict)
+                except Exception as e:
+                    logger.error(
+                        f"An error occurred while parsing battle {battle_dict['id']}: {e}"
                     )
-                    print(f"fetching battle events for {battle_dict['id']}",flush=True)
-                    await asyncio.sleep(.2)
-                    try:
-                        battle_dict["battle_events"] = battle_events
-                        battle = Battle(battle_dict)
-                    except Exception as e:
-                        print(
-                            f"[{get_current_time_formatted()}]\tAn error occurred while parsing battle {battle_dict['id']}: {e}"
-                        )
-                        continue
+                    continue
 
-                    if battle.is_hellgate_5v5:
-                        recent_battles[server]["5v5"].append(battle)
-                        print(f"Found a 5v5 hellgate battle",flush=True)
-
-            print(
-                f"[{get_current_time_formatted()}]\tSERVER: {server.ljust(8)} \tParsed {nb_battles_parsed} battles \tSkipped {nb_battles_skipped} battles",
-                flush=True,
-            )
-            print(
-                f"[{get_current_time_formatted()}]\tSERVER: {server.ljust(8)} \tFound {len(recent_battles[server]['5v5'])} 5v5 Hellgate Battles",
-                flush=True,
-            )
-
-        HellgateWatcher.save_json(
-            REPORTED_BATTLES_JSON_PATH, reported_battles_per_server
-        )
-
-        return recent_battles
-
+                if battle.is_hellgate_5v5:
+                    logger.info("Found a 5v5 hellgate battle")
+                    save_data_from_battle5v5(battle=battle, server=server)
 
     @staticmethod
     async def get_battle_events(battle_id: int, server_url: str) -> List[dict]:
-        return await HellgateWatcher.get_json(f"{server_url}/events/battle/{battle_id}") # type: ignore
+        return await HellgateWatcher.get_json(f"{server_url}/events/battle/{battle_id}")  # type: ignore
 
     @staticmethod
     async def get_battle_from_id(battle_id: int, server_url: str) -> Battle | None:
@@ -523,9 +488,7 @@ class HellgateWatcher:
             battle_dict["battle_events"] = battle_events
             battle = Battle(battle_dict)
         except Exception as e:
-            print(
-                f"[{get_current_time_formatted}]\tAn error occurred while parsing battle {battle_id}: {e}"
-            )
+            logger.error(f"An error occurred while parsing battle {battle_id}: {e}")
             return None
         return battle
 

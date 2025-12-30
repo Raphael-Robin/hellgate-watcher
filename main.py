@@ -1,16 +1,15 @@
-from src.bot import bot
-import dotenv
 import os
+from dotenv import load_dotenv
+from src.bot import bot
 
-dotenv.load_dotenv()
+load_dotenv()
 DISCORDTOKEN = os.getenv("DISCORDTOKEN")
 
 
 def main():
-    if DISCORDTOKEN:
-        bot.run(DISCORDTOKEN)
-    else:
-        raise Exception("Missing DISCORDTOKEN environment variable")
+    if not DISCORDTOKEN:
+        raise Exception("Missing Discord BotToken")
+    bot.run(DISCORDTOKEN)
 
 
 if __name__ == "__main__":

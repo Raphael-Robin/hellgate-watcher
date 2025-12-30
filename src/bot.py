@@ -6,7 +6,6 @@ from src.hellgate_watcher import (
     HellgateWatcher,
     clear_battle_reports_images,
     clear_equipments_images,
-    clear_reported_battles,
 )
 import os
 import json
@@ -14,9 +13,8 @@ from config import (
     CHANNELS_JSON_PATH,
     BOT_COMMAND_PREFIX,
     BATTLE_CHECK_INTERVAL_MINUTES,
-    VERBOSE_LOGGING,
 )
-from src.utils import get_current_time_formatted
+from src.utils import logger
 
 
 def load_channels():
@@ -43,15 +41,15 @@ bot = commands.Bot(command_prefix=BOT_COMMAND_PREFIX, intents=intents)
 
 @bot.event
 async def on_ready():
-    print(
-        f"[{get_current_time_formatted()}]\tLogged in as {bot.user} (ID: {bot.user.id})" # type: ignore
+    logger.info(
+        f"Logged in as {bot.user} (ID: {bot.user.id})"  # type: ignore
     )
     await bot.tree.sync()
     if not clear_storage.is_running():
         clear_storage.start()
     if not send_battle_reports.is_running():
         send_battle_reports.start()
-    print(f"[{get_current_time_formatted()}]\tBattle report watcher started.")
+    logger.info("Battle report watcher started.")
 
 
 # COMMANDS
@@ -104,9 +102,10 @@ async def setchannel(
         f"Hellgate {mode} reports for **{server.capitalize()}** will now be sent to {channel.mention}."
     )
 
+
 @tasks.loop(minutes=BATTLE_CHECK_INTERVAL_MINUTES)
 async def send_battle_reports():
-    print(f"[{get_current_time_formatted()}]\tStarted looking for new battle reports...")
+    logger.info("Started looking for new battle reports...")
     battles = await HellgateWatcher.get_recent_battles()
     battle_reports = await get_battle_reports(battles)
     channels = await get_verified_channels()
@@ -117,35 +116,40 @@ async def send_battle_reports():
                 for channel in channels[server][mode]:
                     try:
                         await channel.send(file=discord.File(battle))
-                        print(
-                            f"[{get_current_time_formatted()}]\tSent battle report to {channel.name}"
-                        )
+                        logger.info(f"Sent battle report to {channel.name}")
                     except Exception as e:
-                        print(
-                            f"[{get_current_time_formatted()}]\tAn error occurred while sending battle report: {e}"
+                        logger.error(
+                            f"An error occurred while sending battle report: {e}"
                         )
                         continue
-    print(f"[{get_current_time_formatted()}]\tfinished sending out battle reports")
+    logger.info("finished sending out battle reports")
+
 
 @tasks.loop(hours=2)
 async def clear_storage():
-    print(f"[{get_current_time_formatted()}]\tClearing storage...")
+    logger.info("Clearing storage...")
     clear_battle_reports_images()
-    print(f"[{get_current_time_formatted()}]\tCleared battle reports...")
+    logger.info("Cleared battle reports...")
     clear_equipments_images()
-    print(f"[{get_current_time_formatted()}]\tCleared equipment images...")
-    clear_reported_battles()
-    print(f"[{get_current_time_formatted()}]\tClearing reported battles json...")
+    logger.info("Cleared equipment images...")
+
 
 async def get_battle_reports(battles):
     battle_reports = {}
     for server in ["europe", "americas", "asia"]:
         battle_reports[server] = {}
         if "5v5" in battles[server]:
-            battle_reports[server]["5v5"] = [await BattleReportImageGenerator.generate_battle_report_5v5(battle) for battle in battles[server]["5v5"]] 
+            battle_reports[server]["5v5"] = [
+                await BattleReportImageGenerator.generate_battle_report_5v5(battle)
+                for battle in battles[server]["5v5"]
+            ]
         if "2v2" in battles[server]:
-            battle_reports[server]["2v2"] = [await BattleReportImageGenerator.generate_battle_report_2v2(battle) for battle in battles[server]["2v2"]] 
+            battle_reports[server]["2v2"] = [
+                await BattleReportImageGenerator.generate_battle_report_2v2(battle)
+                for battle in battles[server]["2v2"]
+            ]
     return battle_reports
+
 
 async def get_verified_channels():
     channels_map = load_channels()
@@ -165,37 +169,13 @@ async def get_verified_channels():
                     verified_channels[server][mode].append(channel)
     return verified_channels
 
+
 async def verify_channel(channel_id) -> discord.TextChannel | None:
     try:
         channel = await bot.fetch_channel(channel_id)
-        if VERBOSE_LOGGING:
-            print(
-                f"[{get_current_time_formatted()}]\tFound channel '{channel.name}' ({channel_id})" # type: ignore
-            )
-    except discord.NotFound:
-        if VERBOSE_LOGGING:
-            print(
-                f"[{get_current_time_formatted()}]\tChannel {channel_id} not found. Skipping."
-            )
-        return None
-    except discord.Forbidden:
-        if VERBOSE_LOGGING:
-            print(
-                f"[{get_current_time_formatted()}]\tNo permission to fetch channel {channel_id}. Skipping."
-            )
-        return None
+        logger.info(f"Found channel '{channel.name}' ({channel_id})")  # type: ignore
     except Exception as e:
-        if VERBOSE_LOGGING:
-            print(
-                f"[{get_current_time_formatted()}]\tAn error occurred while fetching channel {channel_id}: {e}"
-            )
+        logger.error(f"Something wen wrong fetching channel {channel_id}: {e}")
         return None
 
-    if not channel.permissions_for(channel.guild.me).send_messages:
-        print(
-            f"[{get_current_time_formatted()}]\tNo permission to send messages in channel {channel.name} ({channel_id}). Skipping."
-        )
-        return None
-    
-    return channel
-
+    return channel  # type: ignore

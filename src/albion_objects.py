@@ -7,9 +7,8 @@ from config import (
     LETHAL_5V5_IP_CAP,
     LETHAL_5V5_SOFTCAP_PERCENT,
     HEALING_WEAPONS,
-    VERBOSE_LOGGING,
 )
-from src.utils import get_current_time_formatted
+from src.utils import logger
 
 
 class Slot(Enum):
@@ -342,15 +341,17 @@ class Event:
 
 class Battle:
     def __init__(self, battle_dict: dict):
-        if not "battle_events" in battle_dict or battle_dict["battle_events"] is None:
+        if "battle_events" not in battle_dict or battle_dict["battle_events"] is None:
             raise ValueError(
-                f"[{get_current_time_formatted}]\t Error: \t{battle_dict['id']} battle_events cannot be None"
+                f"Error: \t{battle_dict['id']} battle_events cannot be None"
             )
 
         self.id: int = battle_dict["id"]
         self.start_time: str = battle_dict["startTime"]
         self.end_time: str = battle_dict["endTime"]
-        self.events: List[Event] = [Event(event_dict) for event_dict in battle_dict["battle_events"]]
+        self.events: List[Event] = [
+            Event(event_dict) for event_dict in battle_dict["battle_events"]
+        ]
         self.victim_ids: List[str] = [event.victim.id for event in self.events]
 
         self.players: List[Player] = []
@@ -380,8 +381,7 @@ class Battle:
         if not five_vs_five:
             return False
 
-        if VERBOSE_LOGGING:
-            print(f"[{get_current_time_formatted()}]{self.id} is 5v5", flush=True)
+        logger.debug(f"{self.id} is 5v5")
 
         ip_capped = self._is_ip_capped(
             ip_cap=LETHAL_5V5_IP_CAP, ip_softcap_percent=LETHAL_5V5_SOFTCAP_PERCENT
@@ -389,8 +389,7 @@ class Battle:
         if not ip_capped:
             return False
 
-        if VERBOSE_LOGGING:
-            print(f"[{get_current_time_formatted()}]{self.id} is IP capped", flush=True)
+        logger.debug(f"{self.id} is IP capped")
 
         return True
 
@@ -400,15 +399,13 @@ class Battle:
         if not four_player_battle:
             return False
 
-        if VERBOSE_LOGGING:
-            print(f"{self.id} is a 4 man battle", flush=True)
+        logger.debug(f"{self.id} is a 4 man battle")
 
         two_vs_two = self._is_x_vs_x_battle(2)
         if not two_vs_two:
             return False
 
-        if VERBOSE_LOGGING:
-            print(f"{self.id} is 2v2", flush=True)
+        logger.debug(f"{self.id} is 2v2")
 
         ip_capped = self._is_ip_capped(
             ip_cap=LETHAL_2V2_IP_CAP, ip_softcap_percent=LETHAL_2V2_SOFTCAP_PERCENT
@@ -416,15 +413,13 @@ class Battle:
         if not ip_capped:
             return False
 
-        if VERBOSE_LOGGING:
-            print(f"{self.id} is IP capped", flush=True)
+        logger.debug(f"{self.id} is IP capped")
 
         is_depths = self.is_depths()
         if is_depths:
             return False
 
-        if VERBOSE_LOGGING:
-            print(f"{self.id} is not in depths", flush=True)
+        logger.debug(f"{self.id} is not in depths")
 
         return True
 
@@ -449,11 +444,9 @@ class Battle:
                 > player.max_average_item_power(ip_cap, ip_softcap_percent)
                 + ACCOUNT_FOR_ARTIFACT_IP
             ):
-                if VERBOSE_LOGGING:
-                    print(
-                        f"[{get_current_time_formatted()}]\tBattle: {self.id} \tPlayer {player.name} has an average item power of {player.average_item_power} and max average item power of {player.max_average_item_power(ip_cap, ip_softcap_percent) + ACCOUNT_FOR_ARTIFACT_IP}",
-                        flush=True,
-                    )
+                logger.debug(
+                    f"Battle: {self.id} \tPlayer {player.name} has an average item power of {player.average_item_power} and max average item power of {player.max_average_item_power(ip_cap, ip_softcap_percent) + ACCOUNT_FOR_ARTIFACT_IP}",
+                )
                 return False
         return True
 
@@ -513,7 +506,6 @@ class Battle:
         if team_a_ids.issubset(set(self.victim_ids)):
             team_a_ids, team_b_ids = team_b_ids, team_a_ids
 
-
         self.team_a_ids = list(team_a_ids)
         self.team_b_ids = list(team_b_ids)
 
@@ -542,7 +534,7 @@ class Battle:
             player = player_id_to_player_map.get(player_id)
 
             if not player or player.equipment.mainhand is None:
-                continue 
+                continue
 
             if player.equipment.mainhand.is_healing_weapon:
                 healers.append(player_id)
@@ -553,8 +545,10 @@ class Battle:
                 continue
 
             if player.equipment.armor.is_plate:
-                if ("ROYAL" in player.equipment.armor.type or 
-                    "SET1" in player.equipment.armor.type):
+                if (
+                    "ROYAL" in player.equipment.armor.type
+                    or "SET1" in player.equipment.armor.type
+                ):
                     melees.append(player_id)
                     continue
                 else:

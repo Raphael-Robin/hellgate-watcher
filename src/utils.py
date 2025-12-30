@@ -1,5 +1,9 @@
-import datetime
+import logging
 
-
-def get_current_time_formatted():
-    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S").lstrip().ljust(19)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+logger = logging.getLogger("hellgate_watcher_logger")
+logger.setLevel(logging.INFO)
