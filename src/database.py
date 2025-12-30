@@ -481,6 +481,7 @@ def get_team_by_hash(team_hash: str) -> DBTeam | None:
 
 def get_player_statistics(player: DBPlayer) -> Dict | None:
     player_stats = {
+        "name": player.name,
         "nb_wins": player.nb_wins,
         "nb_losses": player.nb_losses,
         "nb_battles": player.nb_battles,
@@ -496,7 +497,7 @@ def get_player_statistics(player: DBPlayer) -> Dict | None:
     if most_common_relationships:
         most_common_relationships_list = [
             {
-                "player_name": rel.get_other_player(player.name),
+                "player_name": rel.get_other_player(player.name).name,
                 "nb_battles": rel.nb_shared_battles,
                 "nb_wins": rel.shared_wins,
             }
@@ -512,7 +513,7 @@ def get_player_statistics(player: DBPlayer) -> Dict | None:
     return result
 
 
-def get_most_active_players(server: str, limit_number=10) -> List[DBPlayer] | None:
+def get_most_active_players(server: str, limit_number: int=10) -> List[DBPlayer] | None:
     players: List[DBPlayer] = []
     db = get_db()
     for doc in (
@@ -522,7 +523,7 @@ def get_most_active_players(server: str, limit_number=10) -> List[DBPlayer] | No
     return players
 
 
-def get_most_active_teams(server: str, limit_number=10) -> List[DBTeam] | None:
+def get_most_active_teams(server: str, limit_number: int=10) -> List[DBTeam] | None:
     teams: List[DBTeam] = []
     db = get_db()
     for doc in (
@@ -530,3 +531,24 @@ def get_most_active_teams(server: str, limit_number=10) -> List[DBTeam] | None:
     ):
         teams.append(DBTeam(**doc))
     return teams
+
+def pretty_print_stats(stats):
+    player = stats["player"]
+    relationships = stats["most_common_relationships"]
+    builds = stats["most_played_builds"]
+
+    print(f"Player Stats")
+    print(f"\t{"name".ljust(15)} \t{"nb_matches".ljust(15)} \t{"winrate".ljust(15)} \t{"last seen on".ljust(15)}")
+    print(f"\t{player["name"].ljust(15)} \t{str(player["nb_battles"]).ljust(15)} \t{str(round(player["nb_wins"]/player["nb_battles"]*100,1))+'%'.ljust(15)} \t{str(player["last_seen"]).ljust(15)}")
+
+    
+    print(f"Team Members")
+    print(f"\t{"name".ljust(15)} \t{"nb_matches".ljust(15)} \t{"winrate".ljust(15)}")
+    for relationship in relationships:
+        print(f"\t{str(relationship["player_name"]).ljust(15)} \t{str(relationship["nb_battles"]).ljust(15)} \t{str(round(relationship["nb_wins"]/relationship["nb_battles"]*100,1))+'%'.ljust(15)}")
+
+    print(f"Builds")
+    print(f"\t{"Weapon".ljust(15)} \t{"Offhand".ljust(15)} \t{"Helmet".ljust(15)} \t{"Armor".ljust(15)} \t{"Boots".ljust(15)} \t{"Cape".ljust(15)} \t{"nb_matches".ljust(15)} \t{"winrate".ljust(15)}")
+    for build in builds:
+        equipment:Equipment = build["equipment"]
+        print(f"""\t{str(equipment.mainhand.type if equipment.mainhand else "").ljust(15)} \t{str(equipment.offhand.type if equipment.offhand else "").ljust(15)} \t{str(equipment.head.type if equipment.head else "").ljust(15)} \t{str(equipment.armor.type if equipment.armor else "").ljust(15)} \t{str(equipment.shoes.type if equipment.shoes else "").ljust(15)} \t{str(equipment.cape.type if equipment.cape else "").ljust(15)} \t{str(build["nb_uses"]).ljust(15)} \t{str(round(build["nb_wins"]/build["nb_uses"]*100,2))+'%'.ljust(15)} """)
