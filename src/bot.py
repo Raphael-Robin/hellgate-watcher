@@ -173,9 +173,9 @@ async def get_verified_channels():
 async def verify_channel(channel_id) -> discord.TextChannel | None:
     try:
         channel = await bot.fetch_channel(channel_id)
-        logger.info(f"Found channel '{channel.name}' ({channel_id})")  # type: ignore
+        logger.debug(f"Found channel '{channel.name}' ({channel_id})")  # type: ignore
     except Exception as e:
-        logger.error(f"Something wen wrong fetching channel {channel_id}: {e}")
+        logger.error(f"Something went wrong fetching channel {channel_id}: {e}")
         return None
 
     return channel  # type: ignore

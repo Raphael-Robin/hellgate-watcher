@@ -4,7 +4,8 @@ from typing import List, Optional, Dict, Tuple
 from datetime import datetime, timezone
 from itertools import combinations
 from pydantic import BaseModel, Field
-from pymongo import MongoClient, collation
+from pymongo import AsyncMongoClient, collation
+from pymongo.errors import DuplicateKeyError
 
 # Assuming your directory structure allows this import
 from src.albion_objects import Battle, Equipment, Player, Slot
@@ -14,14 +15,11 @@ from src.utils import logger
 # --- Configuration ---
 
 
-def get_client() -> MongoClient:
-    MONGO_URI = os.getenv("MONGO_URI")
-    client = MongoClient(MONGO_URI)
-    return client
+MONGO_URI = os.getenv("MONGO_URI")
+client = AsyncMongoClient(MONGO_URI)
+db = client["hellgate_watcher"]
+processed_batches = db["processed_battle_ids"]
 
-
-def get_db():
-    return get_client()["hellgate_watcher"]
 
 
 # --- Pydantic Models for Database ---
@@ -109,8 +107,8 @@ class DBPlayer_Equipment_Usage_Logs(BaseModel):
     def equipment_hash_id(self) -> str:
         return self.metadata.equipment_hash_id
 
-    def get_equipment(self) -> DBEquipment:
-        equipment = get_db_equipment_by_hash(self.equipment_hash_id)
+    async def get_equipment(self) -> DBEquipment:
+        equipment = await get_db_equipment_by_hash(self.equipment_hash_id)
         if equipment:
             return equipment
         else:
@@ -126,18 +124,18 @@ class DBPlayer_Relationship(BaseModel):
     shared_wins: int = 0
     last_seen: datetime
 
-    def get_players(self) -> Tuple[DBPlayer, DBPlayer]:
-        player_a = get_player_by_id(self.players[0])
-        player_b = get_player_by_id(self.players[1])
+    async def get_players(self) -> Tuple[DBPlayer, DBPlayer]:
+        player_a = await get_player_by_id(self.players[0])
+        player_b = await get_player_by_id(self.players[1])
         if player_a and player_b:
             return player_a, player_b
         else:
             raise Exception(f"Player(s) with ID(s) {self.players} not found")
 
-    def get_other_player(self, player_name: str) -> DBPlayer:
+    async def get_other_player(self, player_name: str) -> DBPlayer:
         try:
-            player_a, player_b = self.get_players()
-            player_a, player_b = self.get_players()
+            player_a, player_b = await self.get_players()
+            player_a, player_b = await self.get_players()
             if player_a.name == player_name:
                 return player_b
             elif player_b.name == player_name:
@@ -183,12 +181,12 @@ def get_team_hash(player_ids: List[str]) -> str:
 # --- Main Save Function ---
 
 
-def save_data_from_battle5v5(battle: Battle, server: str):
+async def save_data_from_battle5v5(battle: Battle, server: str):
     """
     Parses a Battle object and updates all 7 collections (including item_trends).
     """
-    logger.info(f"Saving battle {battle.id} to database")
-    client = get_client()
+    logger.debug(f"Saving battle {battle.id} to database")
+    
     db = client["hellgate_watcher"]
 
     # 1. Determine Winners vs Losers based on victims (Wipe Logic)
@@ -208,7 +206,7 @@ def save_data_from_battle5v5(battle: Battle, server: str):
         (winner_hash, winner_ids, True),
         (loser_hash, loser_ids, False),
     ]:
-        db.teams.update_one(
+        await db.teams.update_one(
             {"_id": team_hash},
             {
                 "$setOnInsert": {"player_ids": ids, "server": server},
@@ -236,7 +234,7 @@ def save_data_from_battle5v5(battle: Battle, server: str):
         players_builds_map[player_id] = equipment_hash
 
         # Player Registry
-        db.players.update_one(
+        await db.players.update_one(
             {"_id": player_id},
             {
                 "$set": {"name": player_obj.name, "last_seen": battle_time},
@@ -250,7 +248,7 @@ def save_data_from_battle5v5(battle: Battle, server: str):
             upsert=True,
         )
 
-        db.equipments.update_one(
+        await db.equipments.update_one(
             {"_id": equipment_hash},
             {
                 "$inc": {"nb_uses": 1, "nb_wins": 1 if won else 0},
@@ -287,13 +285,13 @@ def save_data_from_battle5v5(battle: Battle, server: str):
                 "won": won,
             },
         }
-        db.player_equipment_usage_logs.insert_one(log)
+        await db.player_equipment_usage_logs.insert_one(log)
 
     # 4. Update Player Relationships (The Social Graph)
     for team_ids, won in [(winner_ids, True), (loser_ids, False)]:
         for p1, p2 in combinations(sorted(team_ids), 2):
             rel_hash = f"{p1}_{p2}"
-            db.player_relationships.update_one(
+            await db.player_relationships.update_one(
                 {"_id": rel_hash},
                 {
                     "$set": {"players": [p1, p2], "last_seen": battle_time},
@@ -314,26 +312,31 @@ def save_data_from_battle5v5(battle: Battle, server: str):
         timestamp=battle_time,
         server=server,
     )
-    db.battles.replace_one(
+    await db.battles.replace_one(
         {"_id": final_battle.id}, final_battle.model_dump(by_alias=True), upsert=True
     )
 
 
-def clear_database():
-    client = get_client()
+async def clear_database():
+    
     db_name = "hellgate_watcher"
-    client.drop_database(db_name)
-    logger.info(f"Database '{db_name}' dropped successfully.")
+    if db_name in await client.list_database_names():
+        await client.drop_database(db)
+        logger.info(f"Database '{db_name}' dropped successfully.")
+    else:
+        logger.info(f"Database '{db_name}' does not exist.")
 
 
-def setup_database():
+
+
+async def setup_database():
     """Initializes collections and indexes."""
-    client = get_client()
+    
     db = client["hellgate_watcher"]
-    existing_collections = db.list_collection_names()
+    existing_collections = await db.list_collection_names()
 
     if "player_equipment_usage_logs" not in existing_collections:
-        db.create_collection(
+        await db.create_collection(
             "player_equipment_usage_logs",
             timeseries={
                 "timeField": "timestamp",
@@ -343,46 +346,45 @@ def setup_database():
         )
         logger.info("Created Time-Series collection: player_equipment_usage_logs")
 
-    # 1. Create the TTL Index (Runs once)
     processed_batches = db["processed_battle_ids"]
-    # This tells Mongo to delete the doc 3600 seconds (1 hour) after 'created_at'
-    processed_batches.create_index("created_at", expireAfterSeconds=3600)
+    await processed_batches.create_index("created_at", expireAfterSeconds=24*60*60)
+    await processed_batches.create_index("battle_id", unique=True)
+    
 
     logger.info("Applying indexes")
-    db.battles.create_index([("all_player_ids", 1), ("datetime", -1)])
-    db.battles.create_index([("server", 1)])
-    db.players.create_index([("nb_battles", -1)])
-    db.players.create_index([("name", 1)])
-    db.players.create_index([("server", 1)])
-    db.teams.create_index([("player_ids", 1), ("wins", -1)])
-    db.player_relationships.create_index([("players", 1), ("nb_shared_battles", -1)])
-    db.player_equipment_usage_logs.create_index(
+    await db.battles.create_index([("all_player_ids", 1), ("datetime", -1)])
+    await db.battles.create_index([("server", 1)])
+    await db.players.create_index([("nb_battles", -1)])
+    await db.players.create_index([("name", 1)])
+    await db.players.create_index([("server", 1)])
+    await db.teams.create_index([("player_ids", 1), ("wins", -1)])
+    await db.player_relationships.create_index([("players", 1), ("nb_shared_battles", -1)])
+    await db.player_equipment_usage_logs.create_index(
         [("metadata.equipment_hash_id", 1), ("timestamp", -1)]
     )
-    db.player_equipment_usage_logs.create_index(
+    await db.player_equipment_usage_logs.create_index(
         [("metadata.player_id", 1), ("timestamp", -1)]
     )
-    processed_batches.create_index("battle_id", unique=True)
     logger.info("Database setup complete")
 
 
-def is_battle_new(battle_id: str) -> bool:
+async def is_battle_new(battle_id: str) -> bool:
     """Checks if battle exists; if not, logs it and returns True."""
-    client = get_client()
-    db = client["hellgate_watcher"]
-    processed_batches = db["processed_battle_ids"]
     try:
-        processed_batches.insert_one(
+        await processed_batches.insert_one(
             {"battle_id": battle_id, "created_at": datetime.now(tz=timezone.utc)}
         )
         return True
-    except Exception:  # Duplicate Key Error
+    except DuplicateKeyError:
+        return False
+    except Exception as e:
+        logger.error(f"Database error: {e}")
         return False
 
 
-def get_player_by_name_and_server(player_name: str, server: str) -> DBPlayer | None:
-    db = get_db()
-    player = db.players.find_one(
+async def get_player_by_name_and_server(player_name: str, server: str) -> DBPlayer | None:
+    
+    player = await db.players.find_one(
         {"name": player_name, "server": server},
         collation=collation.Collation(locale="en", strength=2),
     )
@@ -391,16 +393,16 @@ def get_player_by_name_and_server(player_name: str, server: str) -> DBPlayer | N
     return DBPlayer(**player)
 
 
-def get_player_by_id(player_id: str) -> DBPlayer | None:
-    db = get_db()
-    player = db.players.find_one({"_id": player_id})
+async def get_player_by_id(player_id: str) -> DBPlayer | None:
+    
+    player = await db.players.find_one({"_id": player_id})
     if not player:
         return None
     return DBPlayer(**player)
 
 
-def get_most_played_builds(player_id: str, limit_number: int = 5) -> List[dict]:
-    db = get_db()
+async def get_most_played_builds(player_id: str, limit_number: int = 5) -> List[dict]:
+    
 
     pipeline = [
         # 1. Match only logs for this player
@@ -422,7 +424,9 @@ def get_most_played_builds(player_id: str, limit_number: int = 5) -> List[dict]:
         {"$limit": limit_number},
     ]
 
-    aggregated_results = list(db.player_equipment_usage_logs.aggregate(pipeline))
+    logs = await db.player_equipment_usage_logs.aggregate(pipeline)
+
+    aggregated_results = await logs.to_list()
 
     results = []
     for item in aggregated_results:
@@ -430,7 +434,7 @@ def get_most_played_builds(player_id: str, limit_number: int = 5) -> List[dict]:
         equipment_hash = item["_id"]
 
         # Use your existing helper to get the full Equipment object
-        equipment_obj = get_equipment_by_hash(equipment_hash)
+        equipment_obj = await get_equipment_by_hash(equipment_hash)
 
         results.append(
             {
@@ -442,44 +446,45 @@ def get_most_played_builds(player_id: str, limit_number: int = 5) -> List[dict]:
     return results
 
 
-def get_most_common_relationships(
+async def get_most_common_relationships(
     player_id: str, limit_number=4
 ) -> List[DBPlayer_Relationship] | None:
-    db = get_db()
+    
     relationships: List[DBPlayer_Relationship] = []
     for doc in (
-        db.player_relationships.find({"players": player_id})
+        await db.player_relationships.find({"players": player_id})
         .sort("nb_shared_battles", -1)
         .limit(limit_number)
+        .to_list()
     ):
         relationships.append(DBPlayer_Relationship(**doc))
     return relationships
 
 
-def get_db_equipment_by_hash(equipment_hash: str) -> DBEquipment | None:
-    db = get_db()
-    equipment = db.equipments.find_one({"_id": equipment_hash})
+async def get_db_equipment_by_hash(equipment_hash: str) -> DBEquipment | None:
+    
+    equipment = await db.equipments.find_one({"_id": equipment_hash})
     if not equipment:
         return None
     return DBEquipment(**equipment)
 
 
-def get_equipment_by_hash(equipment_hash: str) -> Equipment | None:
-    dbequipment = get_db_equipment_by_hash(equipment_hash)
+async def get_equipment_by_hash(equipment_hash: str) -> Equipment | None:
+    dbequipment = await get_db_equipment_by_hash(equipment_hash)
     if not dbequipment:
         return None
     return dbequipment.to_equipment()
 
 
-def get_team_by_hash(team_hash: str) -> DBTeam | None:
-    db = get_db()
-    team = db.teams.find_one({"_id": team_hash})
+async def get_team_by_hash(team_hash: str) -> DBTeam | None:
+    
+    team = await db.teams.find_one({"_id": team_hash})
     if not team:
         return None
     return DBTeam(**team)
 
 
-def get_player_statistics(player: DBPlayer) -> Dict | None:
+async def get_player_statistics(player: DBPlayer) -> Dict | None:
     player_stats = {
         "name": player.name,
         "nb_wins": player.nb_wins,
@@ -492,12 +497,12 @@ def get_player_statistics(player: DBPlayer) -> Dict | None:
     most_played_builds_list = []
     most_common_relationships_list = []
 
-    most_played_builds_list = get_most_played_builds(player.id)
-    most_common_relationships = get_most_common_relationships(player.id)
+    most_played_builds_list = await get_most_played_builds(player.id)
+    most_common_relationships = await get_most_common_relationships(player.id)
     if most_common_relationships:
         most_common_relationships_list = [
             {
-                "player_name": rel.get_other_player(player.name).name,
+                "player_name": (await rel.get_other_player(player.name)).name,
                 "nb_battles": rel.nb_shared_battles,
                 "nb_wins": rel.shared_wins,
             }
@@ -513,21 +518,20 @@ def get_player_statistics(player: DBPlayer) -> Dict | None:
     return result
 
 
-def get_most_active_players(server: str, limit_number: int=10) -> List[DBPlayer] | None:
+async def get_most_active_players(server: str, limit_number: int=10) -> List[DBPlayer] | None:
     players: List[DBPlayer] = []
-    db = get_db()
+    
     for doc in (
-        db.players.find({"server": server}).sort("nb_battles", -1).limit(limit_number)
-    ):
+        await db.players.find({"server": server}).sort("nb_battles", -1).limit(limit_number).to_list()):
         players.append(DBPlayer(**doc))
     return players
 
 
-def get_most_active_teams(server: str, limit_number: int=10) -> List[DBTeam] | None:
+async def get_most_active_teams(server: str, limit_number: int=10) -> List[DBTeam] | None:
     teams: List[DBTeam] = []
-    db = get_db()
+    
     for doc in (
-        db.teams.find({"server": server}).sort("nb_battles", -1).limit(limit_number)
+        await db.teams.find({"server": server}).sort("nb_battles", -1).limit(limit_number).to_list()
     ):
         teams.append(DBTeam(**doc))
     return teams

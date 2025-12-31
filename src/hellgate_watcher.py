@@ -359,13 +359,15 @@ class HellgateWatcher:
         }
 
         for server in ["europe", "americas", "asia"]:
+            logger.debug(f"Started looking for battles in {server} server")
             server_url = SERVER_URLS[server]
             nb_battles_parsed = 0
             nb_battles_skipped = 0
-
+            logger.debug(f"Fetching 50 Battles from {server_url}")
             battles_dicts = await HellgateWatcher._get_50_battles(server_url, page=0)
             page_number = 1
             while not HellgateWatcher._contains_battles_out_of_range(battles_dicts):
+                logger.debug(f"Fetching 50 Battles from {server_url}")
                 battles_dicts.extend(
                     await HellgateWatcher._get_50_battles(server_url, page=page_number)
                 )
@@ -376,7 +378,9 @@ class HellgateWatcher:
             for battle_dict in battles_dicts:
                 battle_id = battle_dict["id"]
 
-                if not is_battle_new(battle_id):
+                logger.debug(f"Checking if battle {battle_id} has already been processed")
+                if not await is_battle_new(battle_id):
+                    logger.debug(f"Battle {battle_id} has already been processed, skipping battle")
                     nb_battles_skipped += 1
                     continue
 
@@ -384,6 +388,7 @@ class HellgateWatcher:
                 player_count = len(battle_dict["players"])
 
                 if player_count <= 10:
+                    logger.debug(f"Fetching battle events for battle: {battle_id}")
                     battle_events = await HellgateWatcher.get_battle_events(
                         battle_id, server_url
                     )
@@ -397,8 +402,9 @@ class HellgateWatcher:
                         continue
 
                     if battle.is_hellgate_5v5:
+                        logger.debug(f"Battle {battle.id} is a 5v5 Hellgate Battle")
                         recent_battles[server]["5v5"].append(battle)
-                        save_data_from_battle5v5(battle=battle, server=server)
+                        await save_data_from_battle5v5(battle=battle, server=server)
                     elif battle.is_hellgate_2v2:
                         recent_battles[server]["2v2"].append(battle)
 
@@ -470,7 +476,7 @@ class HellgateWatcher:
 
                 if battle.is_hellgate_5v5:
                     logger.info("Found a 5v5 hellgate battle")
-                    save_data_from_battle5v5(battle=battle, server=server)
+                    await save_data_from_battle5v5(battle=battle, server=server)
 
     @staticmethod
     async def get_battle_events(battle_id: int, server_url: str) -> List[dict]:
