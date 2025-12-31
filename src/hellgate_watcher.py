@@ -18,7 +18,6 @@ from config import (
     EQUIPMENT_IMAGE_FOLDER,
     ITEM_IMAGE_FOLDER,
     BATTLE_REPORT_IMAGE_FOLDER,
-    REPORTED_BATTLES_JSON_PATH,
     SERVER_URLS,
     TIMEOUT,
     PLAYER_NAME_FONT_PATH,
@@ -519,10 +518,3 @@ def clear_equipments_images():
     for file in os.listdir(EQUIPMENT_IMAGE_FOLDER):
         if file.endswith(".png"):
             os.remove(os.path.join(EQUIPMENT_IMAGE_FOLDER, file))
-
-
-def clear_reported_battles():
-    reported_battles = HellgateWatcher.load_json(REPORTED_BATTLES_JSON_PATH)
-    for server in reported_battles:
-        reported_battles[server] = []
-    HellgateWatcher.save_json(REPORTED_BATTLES_JSON_PATH, reported_battles)

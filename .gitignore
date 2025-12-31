@@ -218,4 +218,5 @@ __marimo__/
 *.png
 *.ipynb
 *.env
-*reported_battles.json
+*.json
+*.pyc

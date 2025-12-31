@@ -76,8 +76,7 @@ The image generation settings can also be tweaked in the `config.py` file.
 ├── README.md             # This file
 ├── uv.lock
 ├── data/
-│   ├── channels.json     # Stores the channel mappings
-│   └── reported_battles.json # Stores the IDs of reported battles
+│   └── channels.json     # Stores the channel mappings
 ├── images/               # Folder for generated images
 └── src/
     ├── albion_objects.py # Albion Online data objects

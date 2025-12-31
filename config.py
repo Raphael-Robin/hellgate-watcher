@@ -27,9 +27,7 @@ ITEM_IMAGE_FOLDER = "./images/items"
 EQUIPMENT_IMAGE_FOLDER = "./images/equipments"
 BATTLE_REPORT_IMAGE_FOLDER = "./images/battle_reports"
 
-REPORTED_BATTLES_JSON_PATH = "./data/reported_battles.json"
 CHANNELS_JSON_PATH = "./data/channels.json"
-TEST_CHANNELS_JSON_PATH = "./data/channels_test.json"
 
 PLAYER_NAME_FONT_PATH = "arialbd.ttf"
 TIMESTAMP_FONT_PATH = "arial.ttf"
