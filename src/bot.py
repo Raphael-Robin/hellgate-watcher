@@ -107,7 +107,7 @@ async def setchannel(
 async def send_battle_reports():
     logger.info("Started looking for new battle reports...")
     battles = await HellgateWatcher.get_recent_battles()
-    battle_reports = await get_battle_reports(battles)
+    battle_reports: dict[str, dict[str, list[str]]]= await get_battle_reports(battles)
     channels = await get_verified_channels()
 
     for server in ["europe", "americas", "asia"]:
@@ -116,7 +116,7 @@ async def send_battle_reports():
                 for channel in channels[server][mode]:
                     try:
                         await channel.send(file=discord.File(battle))
-                        logger.info(f"Sent battle report to {channel.name}")
+                        logger.info(f"Sent battle {battle.removeprefix('battle_report_').removesuffix('.png')} report to {channel.name}")
                     except Exception as e:
                         logger.error(
                             f"An error occurred while sending battle report: {e}"
@@ -153,6 +153,8 @@ async def get_battle_reports(battles):
 
 async def get_verified_channels():
     channels_map = load_channels()
+    channels_to_remove = []
+
     verified_channels = {}
     for server in ["europe", "americas", "asia"]:
         if server not in channels_map:
@@ -163,10 +165,17 @@ async def get_verified_channels():
                 continue
             verified_channels[server][mode] = []
 
-            for channel_id in channels_map[server][mode].values():
+            for server_id, channel_id in channels_map[server][mode].items():
                 channel = await verify_channel(channel_id)
                 if channel:
                     verified_channels[server][mode].append(channel)
+                else:
+                    channels_to_remove.append((server,mode,server_id))
+                    
+    for (server,mode,server_id) in channels_to_remove:
+        del channels_map[server][mode][server_id]
+        logger.info(f'Removed channel {server_id} from {server} {mode}')
+    save_channels(channels_map)
     return verified_channels
 
 
