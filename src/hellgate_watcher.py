@@ -360,56 +360,32 @@ class HellgateWatcher:
         for server in ["europe", "americas", "asia"]:
             logger.debug(f"Started looking for battles in {server} server")
             server_url = SERVER_URLS[server]
-            nb_battles_parsed = 0
-            nb_battles_skipped = 0
-            logger.debug(f"Fetching 50 Battles from {server_url}")
-            battles_dicts = await HellgateWatcher._get_50_battles(server_url, page=0)
-            page_number = 1
-            while not HellgateWatcher._contains_battles_out_of_range(battles_dicts):
+            page_number = 0
+
+            while True:
                 logger.debug(f"Fetching 50 Battles from {server_url}")
-                battles_dicts.extend(
-                    await HellgateWatcher._get_50_battles(server_url, page=page_number)
-                )
-                if battles_dicts == []:
+                batch = await HellgateWatcher._get_50_battles(server_url, page=page_number)
+            
+                if not batch:
                     break
+
+                batch_tasks = [HellgateWatcher.process_single_battle(battle, server) for battle in batch]
+                results = await asyncio.gather(*batch_tasks)
+
+                for battle in results:
+                    if battle:
+                        recent_battles[server]["total"] += 1
+                        if battle.is_hellgate_5v5:
+                            recent_battles[server]["5v5"].append(battle)
+                        elif battle.is_hellgate_2v2:
+                            recent_battles[server]["2v2"].append(battle)
+
+                if  HellgateWatcher._contains_battles_out_of_range(batch):
+                    logger.debug("finished looking for battles in this server")
+                    break
+
                 page_number += 1
 
-            for battle_dict in battles_dicts:
-                battle_id = battle_dict["id"]
-
-                logger.debug(f"Checking if battle {battle_id} has already been processed")
-                if not await is_battle_new(battle_id):
-                    logger.debug(f"Battle {battle_id} has already been processed, skipping battle")
-                    nb_battles_skipped += 1
-                    continue
-
-                nb_battles_parsed += 1
-                player_count = len(battle_dict["players"])
-
-                if player_count <= 10:
-                    logger.debug(f"Fetching battle events for battle: {battle_id}")
-                    battle_events = await HellgateWatcher.get_battle_events(
-                        battle_id, server_url
-                    )
-                    try:
-                        battle_dict["battle_events"] = battle_events
-                        battle = Battle(battle_dict)
-                    except Exception as e:
-                        logger.error(
-                            f"An error occurred while parsing battle {battle_dict['id']}: {e}"
-                        )
-                        continue
-
-                    if battle.is_hellgate_5v5:
-                        logger.debug(f"Battle {battle.id} is a 5v5 Hellgate Battle")
-                        recent_battles[server]["5v5"].append(battle)
-                        await save_data_from_battle5v5(battle=battle, server=server)
-                    elif battle.is_hellgate_2v2:
-                        recent_battles[server]["2v2"].append(battle)
-
-            logger.info(
-                f"SERVER: {server.ljust(8)} \tParsed {nb_battles_parsed} battles \tSkipped {nb_battles_skipped} battles"
-            )
             logger.info(
                 f"SERVER: {server.ljust(8)} \tFound {len(recent_battles[server]['5v5'])} 5v5 Hellgate Battles"
             )
@@ -418,6 +394,40 @@ class HellgateWatcher:
             )
 
         return recent_battles
+
+    @staticmethod
+    async def process_single_battle(battle_dict: dict, server: str) -> Battle | None:
+        server_url = SERVER_URLS[server]
+        battle_id = battle_dict["id"]
+                
+        player_count = len(battle_dict["players"])
+        if not (player_count == 4 or player_count == 10):
+            return
+
+        logger.debug(f"Checking if battle {battle_id} has already been processed")
+        if not await is_battle_new(battle_id):
+            logger.debug(f"Battle {battle_id} has already been processed, skipping battle")
+            return
+        
+        logger.debug(f"Fetching battle events for battle: {battle_id}")
+        battle_events = await HellgateWatcher.get_battle_events(
+            battle_id, server_url
+        )
+        try:
+            battle_dict["battle_events"] = battle_events
+            battle = Battle(battle_dict)
+        except Exception as e:
+            logger.error(
+                f"An error occurred while parsing battle {battle_dict['id']}: {e}"
+            )
+            return
+        
+        if battle.is_hellgate_5v5:
+            logger.debug(f"Battle {battle.id} is a 5v5 Hellgate Battle")
+            await save_data_from_battle5v5(battle=battle, server=server)
+            return battle
+        elif battle.is_hellgate_2v2:
+            return battle
 
     @staticmethod
     async def save_battles_5v5(
@@ -451,7 +461,6 @@ class HellgateWatcher:
             nb_battles = len(battles_dicts)
             for index in range(nb_battles):
                 battle_dict = battles_dicts[index]
-
                 player_count = len(battle_dict["players"])
 
                 if not 9 <= player_count <= 11:
