@@ -438,7 +438,7 @@ class Battle:
 
     def _is_ip_capped(self, ip_cap: float, ip_softcap_percent: int) -> bool:
         for player in self.players:
-            ACCOUNT_FOR_ARTIFACT_IP = 100
+            ACCOUNT_FOR_ARTIFACT_IP = 150
             if (
                 player.average_item_power
                 > player.max_average_item_power(ip_cap, ip_softcap_percent)

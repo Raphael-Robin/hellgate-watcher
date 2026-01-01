@@ -146,60 +146,57 @@ class HellgateWatcher:
 
     @staticmethod
     async def save_battles_5v5(
-        max_lookback_minutes: int, servers: List[str] = ["europe", "americas", "asia"]
+        max_lookback_minutes: int, 
+        servers: List[str] = ["europe", "americas", "asia"]
     ) -> None:
+        """
+        Crawls servers for recent 5v5 battles within a specific lookback window
+        and saves them to the database using concurrent batch processing.
+        """
         for server in servers:
+            logger.info(f"Started scanning {server} for 5v5 battles (Lookback: {max_lookback_minutes}m)")
             server_url = SERVER_URLS[server]
+            page_number = 0
+            total_saved = 0
 
-            battles_dicts = await HellgateWatcher._get_50_battles(server_url, page=0)
-            page_number = 1
-            logger.info(
-                f"fetched {len(battles_dicts)} battles from {page_number} pages"
-            )
-            while not HellgateWatcher._contains_battles_out_of_range(
-                battles_dicts, range_minutes=max_lookback_minutes
-            ):
-                battles_dicts.extend(
-                    await HellgateWatcher._get_50_battles(server_url, page=page_number)
-                )
-                await asyncio.sleep(0.2)
-                if battles_dicts == []:
+            while True:
+                logger.debug(f"Fetching page {page_number} from {server}")
+                batch = await HellgateWatcher._get_50_battles(server_url, page=page_number)
+                
+                if not batch:
+                    logger.info(f"No more battles found on {server} at page {page_number}")
                     break
-                page_number += 1
 
-                logger.info(
-                    f"fetched {len(battles_dicts)} battles from {page_number} pages"
-                )
+                # 1. Process the batch concurrently (Process 50 battles at once)
+                # This uses your process_single_battle which handles is_battle_new and save_data_from_battle5v5
+                batch_tasks = [
+                    HellgateWatcher.process_single_battle(battle_dict, server) 
+                    for battle_dict in batch
+                ]
+                results = await asyncio.gather(*batch_tasks)
+
+                # Count how many were actually 5v5 and saved
+                saved_in_batch = len([b for b in results if b and b.is_hellgate_5v5])
+                total_saved += saved_in_batch
+                
+                logger.info(f"Page {page_number} processed. 5v5 battles saved this batch: {saved_in_batch}")
+
+                # 2. Check if we have reached the time limit
+                # Note: contains_battles_out_of_range needs the max_lookback_minutes passed in
+                if HellgateWatcher._contains_battles_out_of_range(batch, range_minutes=max_lookback_minutes):
+                    logger.info(f"Reached lookback limit ({max_lookback_minutes}m) on {server}. Stopping.")
+                    break
+
+                # 3. Safety break for API limits
                 if page_number >= 199:
+                    logger.warning(f"Reached hard page limit (200) on {server}")
                     break
 
-            nb_battles = len(battles_dicts)
-            for index in range(nb_battles):
-                battle_dict = battles_dicts[index]
-                player_count = len(battle_dict["players"])
+                page_number += 1
+                # Optional: Small sleep to be kind to the API
+                await asyncio.sleep(1)
 
-                if not 9 <= player_count <= 11:
-                    continue
-
-                battle_events = await HellgateWatcher.get_battle_events(
-                    battle_dict["id"], server_url
-                )
-                await asyncio.sleep(0.2)
-                logger.info(
-                    f"[{str(index + 1).rjust(4, '0')} / {str(nb_battles).rjust(4, '0')}] fetching battle events for battle: {battle_dict['id']}"
-                )
-                try:
-                    battle_dict["battle_events"] = battle_events
-                    battle = Battle(battle_dict)
-                except Exception as e:
-                    logger.error(
-                        f"An error occurred while parsing battle {battle_dict['id']}: {e}"
-                    )
-                    continue
-
-                if battle.is_hellgate_5v5:
-                    logger.info("Found a 5v5 hellgate battle")
-                    await save_data_from_battle5v5(battle=battle, server=server)
+            logger.info(f"Finished {server}. Total 5v5 battles saved: {total_saved}")
 
     @staticmethod
     async def get_battle_events(battle_id: int, server_url: str) -> List[dict]:

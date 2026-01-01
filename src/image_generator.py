@@ -448,7 +448,7 @@ class BattleReportImageGenerator:
         paths = {
             "PLAYER OVERVIEW": await BattleReportImageGenerator.generate_player_stats_image(stats["player_stats"]),
             "FREQUENT TEAMMATES": await BattleReportImageGenerator.generate_team_mates_image(stats["most_common_relationships"]),
-            "TOP PERFORMANCE BUILDS": await BattleReportImageGenerator.generate_equipment_with_stats_list_image(stats["most_played_builds"])
+            "MOST USED BUILDS": await BattleReportImageGenerator.generate_equipment_with_stats_list_image(stats["most_played_builds"])
         }
         
         raw_images = {k: Image.open(v) for k, v in paths.items()}
