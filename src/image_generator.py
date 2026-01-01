@@ -1,8 +1,6 @@
-from typing import Dict, List
-
+from typing import Any, Dict, List
 from src.albion_objects import *
 from src.utils import logger
-
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from datetime import datetime
 import os
@@ -10,7 +8,7 @@ import aiohttp
 from config import *
 from src.hellgate_watcher import clear_equipments_images
 
-
+# Shared Constants for a cohesive look
 
 
 class BattleReportImageGenerator:
@@ -265,3 +263,235 @@ class BattleReportImageGenerator:
         clear_equipments_images()
 
         return battle_report_image_path
+
+    @staticmethod
+    async def generate_equipment_with_stats_image(equipment: Equipment, stats: Dict[str, Any]) -> str:
+        equipment_image_path = await BattleReportImageGenerator.generate_equipment_image(equipment)
+        equipment_image = Image.open(equipment_image_path)
+        eq_w, eq_h = equipment_image.size
+
+        # --- Metrics ---
+        header_h = 80
+        row_h = 50
+        table_h = header_h + (len(stats) * row_h) + 20
+        
+        final_image = Image.new("RGB", (eq_w, eq_h + table_h), BACKGROUND_COLOR)
+        final_image.paste(equipment_image, (0, 0))
+        draw = ImageDraw.Draw(final_image)
+        
+        # 1. Big Left-Aligned Header
+        font_large = ImageFont.truetype(PLAYER_NAME_FONT_PATH, LARGE_FONT_SIZE)
+        draw.text((GLOBAL_PADDING, eq_h + 15), "EQUIPMENT STATS", font=font_large, fill=FONT_COLOR)
+        
+        # 2. Accent Line under Header
+        draw.rectangle([GLOBAL_PADDING, eq_h + 70, eq_w - GLOBAL_PADDING, eq_h + 73], fill=PRIMARY_ACCENT)
+
+        # 3. Stats Rows
+        font_stats = ImageFont.truetype(TIMESTAMP_FONT_PATH, MEDIUM_FONT_SIZE)
+        curr_y = eq_h + header_h + 10
+        for key, value in stats.items():
+            draw.text((GLOBAL_PADDING, curr_y), f"{key}:", font=font_stats, fill=(180, 180, 180))
+            draw.text((eq_w // 2, curr_y), str(value), font=font_stats, fill=FONT_COLOR)
+            curr_y += row_h
+
+        path = f"{EQUIPMENT_IMAGE_FOLDER}/eq_{datetime.now().strftime('%f')}.png"
+        final_image.save(path)
+        return path
+
+    @staticmethod
+    async def generate_team_mates_image(team_mates_stats: List[Dict[str, Any]]) -> str:
+        # Set standard column widths for a wide dashboard feel
+        col_widths = {"name": 450, "battles": 200, "winrate": 200}
+        total_w = sum(col_widths.values()) + (GLOBAL_PADDING * 2)
+        row_h = 60
+        header_h = 80
+        
+        img_h = header_h + (len(team_mates_stats) * row_h) + GLOBAL_PADDING
+        image = Image.new("RGB", (total_w, img_h), BACKGROUND_COLOR)
+        draw = ImageDraw.Draw(image)
+        
+        f_header = ImageFont.truetype(PLAYER_NAME_FONT_PATH, LARGE_FONT_SIZE)
+        f_row = ImageFont.truetype(TIMESTAMP_FONT_PATH, MEDIUM_FONT_SIZE)
+
+        # Headers
+        cols = [("Player", "name"), ("Battles", "battles"), ("Winrate", "winrate")]
+        curr_x = GLOBAL_PADDING
+        for label, key in cols:
+            draw.text((curr_x, 20), label, font=f_header, fill=PRIMARY_ACCENT)
+            curr_x += col_widths[key]
+
+        # Content
+        curr_y = header_h
+        for player in team_mates_stats:
+            curr_x = GLOBAL_PADDING
+            draw.text((curr_x, curr_y), str(player.get("player_name", "")), font=f_row, fill=FONT_COLOR)
+            curr_x += col_widths["name"]
+            draw.text((curr_x, curr_y), str(player.get("nb_battles", "")), font=f_row, fill=FONT_COLOR)
+            curr_x += col_widths["battles"]
+            draw.text((curr_x, curr_y), str(player.get("winrate", "")), font=f_row, fill=FONT_COLOR)
+            curr_y += row_h
+
+        path = f"{EQUIPMENT_IMAGE_FOLDER}/tm_{datetime.now().strftime('%f')}.png"
+        image.save(path)
+        return path
+
+    @staticmethod
+    async def generate_equipment_with_stats_list_image(equipment_stats_list: List[Dict[str, Any]]) -> str:
+        """
+        Generates a combined image of multiple equipment with their stats.
+        Each item in the list is a dict with 'equipment' (Equipment object)
+        and 'stats' (Dict[str, any]).
+        """
+        if not equipment_stats_list:
+            return ""
+
+        individual_images = []
+        for item_data in equipment_stats_list:
+            equipment = item_data["equipment"]
+            stats = item_data["stats"]
+            image_path = await BattleReportImageGenerator.generate_equipment_with_stats_image(
+                equipment, stats
+            )
+            individual_images.append(Image.open(image_path))
+
+        # Calculate total width and max height
+        total_width = sum(img.width for img in individual_images) + (len(individual_images) - 1) * SPACING
+        max_height = max(img.height for img in individual_images)
+
+        # Create a new blank image with the calculated dimensions
+        combined_image = Image.new("RGB", (total_width, max_height), BACKGROUND_COLOR)
+
+        # Paste individual images horizontally
+        current_x = 0
+        for img in individual_images:
+            combined_image.paste(img, (current_x, 0))
+            current_x += img.width + SPACING
+
+        # Save the combined image
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        combined_image_path = (
+            f"{EQUIPMENT_IMAGE_FOLDER}/combined_equipment_stats_{timestamp}.png"
+        )
+        combined_image.save(combined_image_path)
+        logger.debug(f"Saved combined equipment with stats image to {combined_image_path}")
+
+        return combined_image_path
+       
+    @staticmethod
+    async def generate_player_stats_image(player_stats: Dict[str, Any]) -> str:
+        """
+        Generates an image displaying a summary of player stats.
+        """
+        if not player_stats:
+            logger.warning("Received empty dict for player_stats. No image generated.")
+            return ""
+
+        # --- Layout settings ---
+        title_font = ImageFont.truetype(PLAYER_NAME_FONT_PATH, 40)
+        stat_font = ImageFont.truetype(TIMESTAMP_FONT_PATH, 30)
+        padding = 20
+        line_height = 45
+        left_col_width = 200
+
+        # --- Prepare data ---
+        stats_to_display = {
+            "Battles": player_stats.get("nb_battles", "N/A"),
+            "Winrate": player_stats.get("winrate", "N/A"),
+            "First Seen": player_stats.get("first_seen"),
+            "Last Seen": player_stats.get("last_seen"),
+        }
+
+        # Format dates
+        for key in ["First Seen", "Last Seen"]:
+            if isinstance(stats_to_display[key], datetime):
+                stats_to_display[key] = stats_to_display[key].strftime("%d %B %Y")
+            elif isinstance(stats_to_display[key], str):
+                try:
+                    stats_to_display[key] = datetime.fromisoformat(stats_to_display[key].replace("Z", "+00:00")).strftime("%d %B %Y")
+                except ValueError:
+                    pass # Keep original string if parsing fails
+
+
+        # --- Canvas setup ---
+        img_width = 600
+        img_height = padding * 2 + line_height * (len(stats_to_display) + 1) # +1 for title
+        
+        image = Image.new("RGB", (img_width, img_height), BACKGROUND_COLOR)
+        draw = ImageDraw.Draw(image)
+
+        # --- Draw Content ---
+        player_name = player_stats.get('name', 'Player Stats')
+        title_bbox = draw.textbbox((0,0), player_name, font=title_font)
+        title_width = title_bbox[2] - title_bbox[0]
+        draw.text(((img_width - title_width) / 2, padding), player_name, font=title_font, fill=FONT_COLOR)
+
+        current_y = padding + line_height
+        for key, value in stats_to_display.items():
+            # Draw Key
+            draw.text((padding, current_y), f"{key}:", font=stat_font, fill=FONT_COLOR)
+            # Draw Value
+            draw.text((padding + left_col_width, current_y), str(value), font=stat_font, fill=FONT_COLOR)
+            current_y += line_height
+
+        # --- Save Image ---
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        image_path = f"{BATTLE_REPORT_IMAGE_FOLDER}/player_summary_{timestamp}.png"
+        image.save(image_path)
+        
+        logger.debug(f"Saved player summary image to {image_path}")
+
+        return image_path
+
+    @staticmethod
+    async def generate_player_stats_summary_image(stats: dict) -> str:
+        # 1. Generate sections
+        paths = {
+            "PLAYER OVERVIEW": await BattleReportImageGenerator.generate_player_stats_image(stats["player_stats"]),
+            "FREQUENT TEAMMATES": await BattleReportImageGenerator.generate_team_mates_image(stats["most_common_relationships"]),
+            "TOP PERFORMANCE BUILDS": await BattleReportImageGenerator.generate_equipment_with_stats_list_image(stats["most_played_builds"])
+        }
+        
+        raw_images = {k: Image.open(v) for k, v in paths.items()}
+        
+        # 2. Resizing - Normalize all to the widest component
+        content_width = max(img.width for img in raw_images.values())
+        MARGIN = 50
+        final_width = content_width + (MARGIN * 2)
+        
+        processed_sections = []
+        for title, img in raw_images.items():
+            ratio = content_width / img.width
+            new_h = int(img.height * ratio)
+            processed_sections.append((title, img.resize((content_width, new_h), Image.Resampling.LANCZOS)))
+
+        # 3. Height Calculation
+        BAR_H = 90
+        GAP = 60
+        total_height = sum(img.height for t, img in processed_sections) + (len(processed_sections) * (BAR_H + GAP)) + MARGIN
+        
+        final_image = Image.new("RGB", (final_width, total_height), BACKGROUND_COLOR)
+        draw = ImageDraw.Draw(final_image)
+        f_title = ImageFont.truetype(PLAYER_NAME_FONT_PATH, 50) # Very large section titles
+
+        # 4. Paste Loop
+        curr_y = MARGIN
+        for title, img in processed_sections:
+            # Draw Left-Aligned Section Header
+            # Draw a small vertical accent bar next to title
+            draw.rectangle([MARGIN, curr_y, MARGIN + 8, curr_y + 50], fill=PRIMARY_ACCENT)
+            draw.text((MARGIN + 25, curr_y - 5), title, font=f_title, fill=FONT_COLOR)
+            
+            curr_y += BAR_H
+            
+            # Paste Content
+            final_image.paste(img, (MARGIN, curr_y))
+            curr_y += img.height + GAP
+
+        # 5. Final Save
+        save_path = f"{BATTLE_REPORT_IMAGE_FOLDER}/summary_{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
+        final_image.save(save_path)
+        
+        # Cleanup
+        for p in paths.values():
+            if os.path.exists(p): os.remove(p)
+        return save_path

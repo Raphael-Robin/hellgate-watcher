@@ -11,7 +11,7 @@ from config import (
     BOT_COMMAND_PREFIX,
     BATTLE_CHECK_INTERVAL_MINUTES,
 )
-from src.database import get_channels, add_channel, remove_channel, DBChannel
+from src.database import get_channels, add_channel, remove_channel, DBChannel, get_player_by_name_and_server, get_player_statistics
 from src.utils import logger
 
 
@@ -160,3 +160,32 @@ async def get_discord_channel(channel: DBChannel) -> discord.TextChannel | None:
         discord_channel = await bot.fetch_channel(channel.channel_id)
         logger.debug(f"Found channel '{discord_channel.name}' ({discord_channel.id})")  # type: ignore
         return discord_channel # type: ignore
+    
+
+@app_commands.describe(
+    player_name="The name of the player.",
+    server="The server the player is on.",
+)
+@app_commands.choices(
+    server=[
+        app_commands.Choice(name="Europe", value="europe"),
+        app_commands.Choice(name="Americas", value="americas"),
+        app_commands.Choice(name="Asia", value="asia"),
+    ]
+)
+@bot.tree.command(name="stats", description="See the stats of a player.")
+async def get_player_stats(interaction: discord.Interaction, player_name: str, server: str):
+    await interaction.response.defer()
+
+    player = await get_player_by_name_and_server(player_name, server)
+    if not player:
+        await interaction.followup.send("Cannot find player", ephemeral=True)
+        return
+
+    stats = await get_player_statistics(player=player)
+    if not stats:
+        await interaction.followup.send("Cannot find stats for this player", ephemeral=True)
+        return
+    
+    image_path = await BattleReportImageGenerator.generate_player_stats_summary_image(stats)
+    await interaction.followup.send(file=discord.File(image_path))

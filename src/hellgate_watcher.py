@@ -79,6 +79,7 @@ class HellgateWatcher:
             while True:
                 logger.debug(f"Fetching 50 Battles from {server_url}")
                 batch = await HellgateWatcher._get_50_battles(server_url, page=page_number)
+                batch.reverse()
             
                 if not batch:
                     break

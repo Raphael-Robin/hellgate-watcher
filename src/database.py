@@ -448,8 +448,10 @@ async def get_most_played_builds(player_id: str, limit_number: int = 5) -> List[
         results.append(
             {
                 "equipment": equipment_obj,
-                "nb_uses": item["nb_uses"],
-                "nb_wins": item["nb_wins"],
+                "stats":{
+                    "nb_uses": item["nb_uses"],
+                    "winrate": str(round(item["nb_wins"]/item["nb_uses"]*100,2))+'%',
+                }
             }
         )
     return results
@@ -501,6 +503,7 @@ async def get_player_statistics(player: DBPlayer) -> Dict | None:
         "nb_battles": player.nb_battles,
         "first_seen": player.first_seen,
         "last_seen": player.last_seen,
+        "winrate": f"{round(player.nb_wins/player.nb_battles*100,2)}%"
     }
 
     most_played_builds_list = []
@@ -513,13 +516,13 @@ async def get_player_statistics(player: DBPlayer) -> Dict | None:
             {
                 "player_name": (await rel.get_other_player(player.name)).name,
                 "nb_battles": rel.nb_shared_battles,
-                "nb_wins": rel.shared_wins,
+                "winrate": f"{round(rel.shared_wins/rel.nb_shared_battles*100,2)}%"
             }
             for rel in most_common_relationships
         ]
 
     result = {
-        "player": player_stats,
+        "player_stats": player_stats,
         "most_played_builds": most_played_builds_list,
         "most_common_relationships": most_common_relationships_list,
     }
@@ -546,25 +549,26 @@ async def get_most_active_teams(server: str, limit_number: int=10) -> List[DBTea
     return teams
 
 def pretty_print_stats(stats):
-    player = stats["player"]
+    player = stats["player_stats"]
     relationships = stats["most_common_relationships"]
     builds = stats["most_played_builds"]
 
     print(f"Player Stats")
     print(f"\t{"name".ljust(15)} \t{"nb_matches".ljust(15)} \t{"winrate".ljust(15)} \t{"last seen on".ljust(15)}")
-    print(f"\t{player["name"].ljust(15)} \t{str(player["nb_battles"]).ljust(15)} \t{str(round(player["nb_wins"]/player["nb_battles"]*100,1))+'%'.ljust(15)} \t{str(player["last_seen"]).ljust(15)}")
+    print(f"\t{player["name"].ljust(15)} \t{str(player["nb_battles"]).ljust(15)} \t{player["winrate"].ljust(15)} \t{str(player["last_seen"]).ljust(15)}")
 
     
     print(f"Team Members")
     print(f"\t{"name".ljust(15)} \t{"nb_matches".ljust(15)} \t{"winrate".ljust(15)}")
     for relationship in relationships:
-        print(f"\t{str(relationship["player_name"]).ljust(15)} \t{str(relationship["nb_battles"]).ljust(15)} \t{str(round(relationship["nb_wins"]/relationship["nb_battles"]*100,1))+'%'.ljust(15)}")
+        print(f"\t{str(relationship["player_name"]).ljust(15)} \t{str(relationship["nb_battles"]).ljust(15)} \t{relationship["winrate"].ljust(15)}")
 
     print(f"Builds")
     print(f"\t{"Weapon".ljust(15)} \t{"Offhand".ljust(15)} \t{"Helmet".ljust(15)} \t{"Armor".ljust(15)} \t{"Boots".ljust(15)} \t{"Cape".ljust(15)} \t{"nb_matches".ljust(15)} \t{"winrate".ljust(15)}")
     for build in builds:
         equipment:Equipment = build["equipment"]
-        print(f"""\t{str(equipment.mainhand.type if equipment.mainhand else "").ljust(15)} \t{str(equipment.offhand.type if equipment.offhand else "").ljust(15)} \t{str(equipment.head.type if equipment.head else "").ljust(15)} \t{str(equipment.armor.type if equipment.armor else "").ljust(15)} \t{str(equipment.shoes.type if equipment.shoes else "").ljust(15)} \t{str(equipment.cape.type if equipment.cape else "").ljust(15)} \t{str(build["nb_uses"]).ljust(15)} \t{str(round(build["nb_wins"]/build["nb_uses"]*100,2))+'%'.ljust(15)} """)
+        equipment_stats = build["stats"]
+        print(f"""\t{str(equipment.mainhand.type if equipment.mainhand else "").ljust(15)} \t{str(equipment.offhand.type if equipment.offhand else "").ljust(15)} \t{str(equipment.head.type if equipment.head else "").ljust(15)} \t{str(equipment.armor.type if equipment.armor else "").ljust(15)} \t{str(equipment.shoes.type if equipment.shoes else "").ljust(15)} \t{str(equipment.cape.type if equipment.cape else "").ljust(15)} \t{str(equipment_stats["nb_uses"]).ljust(15)} \t{equipment_stats["winrate"].ljust(15)} """)
 
 
 async def get_channels(server: str, hg_type: str):
