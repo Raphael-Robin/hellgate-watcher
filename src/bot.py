@@ -2,34 +2,20 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 from src.hellgate_watcher import (
-    BattleReportImageGenerator,
     HellgateWatcher,
     clear_battle_reports_images,
     clear_equipments_images,
 )
-import os
-import json
+from src.image_generator import BattleReportImageGenerator
 from config import (
-    CHANNELS_JSON_PATH,
     BOT_COMMAND_PREFIX,
     BATTLE_CHECK_INTERVAL_MINUTES,
 )
+from src.database import get_channels, add_channel, remove_channel, DBChannel
 from src.utils import logger
 
 
-def load_channels():
-    try:
-        with open(CHANNELS_JSON_PATH, "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
 
-
-def save_channels(channel_map):
-    directory = os.path.dirname(CHANNELS_JSON_PATH)
-    os.makedirs(directory, exist_ok=True)
-    with open(CHANNELS_JSON_PATH, "w") as f:
-        json.dump(channel_map, f, indent=4)
 
 
 # DISCORD BOT
@@ -93,11 +79,7 @@ async def setchannel(
         )
         return
 
-    channels_map = load_channels()
-    channels_map.setdefault(server, {}).setdefault(mode, {})[
-        str(interaction.guild.id)
-    ] = channel.id
-    save_channels(channels_map)
+    await add_channel(channel_id=channel.id, server_id=interaction.guild.id, server=server, hg_type=mode)
     await interaction.response.send_message(
         f"Hellgate {mode} reports for **{server.capitalize()}** will now be sent to {channel.mention}."
     )
@@ -108,14 +90,19 @@ async def send_battle_reports():
     logger.info("Started looking for new battle reports...")
     battles = await HellgateWatcher.get_recent_battles()
     battle_reports: dict[str, dict[str, list[str]]]= await get_battle_reports(battles)
-    channels = await get_verified_channels()
+    await verify_channels()
 
     for server in ["europe", "americas", "asia"]:
         for mode in ["5v5", "2v2"]:
+
+            channels = [await get_discord_channel(dbchannel) for dbchannel in await get_channels(server=server, hg_type=mode)]
+
             for battle in battle_reports[server][mode]:
-                for channel in channels[server][mode]:
+                for channel in channels:
+                    if not channel:
+                        continue
                     try:
-                        await channel.send(file=discord.File(battle))
+                        await channel.send(file=discord.File(battle))   
                         logger.info(f"Sent battle {battle.removeprefix('battle_report_').removesuffix('.png')} report to {channel.name}")
                     except Exception as e:
                         logger.error(
@@ -151,40 +138,25 @@ async def get_battle_reports(battles):
     return battle_reports
 
 
-async def get_verified_channels():
-    channels_map = load_channels()
-    channels_to_remove = []
-
-    verified_channels = {}
+async def verify_channels():
     for server in ["europe", "americas", "asia"]:
-        if server not in channels_map:
-            continue
-        verified_channels[server] = {}
         for mode in ["5v5", "2v2"]:
-            if mode not in channels_map[server]:
-                continue
-            verified_channels[server][mode] = []
+            channels = await get_channels(server=server, hg_type=mode)
+            for channel in channels:
+                if not await channel_exists(channel.channel_id):
+                    await remove_channel(channel)
 
-            for server_id, channel_id in channels_map[server][mode].items():
-                channel = await verify_channel(channel_id)
-                if channel:
-                    verified_channels[server][mode].append(channel)
-                else:
-                    channels_to_remove.append((server,mode,server_id))
-                    
-    for (server,mode,server_id) in channels_to_remove:
-        del channels_map[server][mode][server_id]
-        logger.info(f'Removed channel {server_id} from {server} {mode}')
-    save_channels(channels_map)
-    return verified_channels
-
-
-async def verify_channel(channel_id) -> discord.TextChannel | None:
+async def channel_exists(channel_id) -> bool:
     try:
         channel = await bot.fetch_channel(channel_id)
         logger.debug(f"Found channel '{channel.name}' ({channel_id})")  # type: ignore
+        return True
     except Exception as e:
         logger.error(f"Something went wrong fetching channel {channel_id}: {e}")
-        return None
+        return False
 
-    return channel  # type: ignore
+async def get_discord_channel(channel: DBChannel) -> discord.TextChannel | None:
+    if await channel_exists(channel.channel_id):
+        discord_channel = await bot.fetch_channel(channel.channel_id)
+        logger.debug(f"Found channel '{discord_channel.name}' ({discord_channel.id})")  # type: ignore
+        return discord_channel # type: ignore

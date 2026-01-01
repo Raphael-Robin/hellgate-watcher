@@ -161,6 +161,12 @@ class DBBattle5v5(BaseModel):
     server: str
 
 
+class DBChannel(BaseModel):
+    id: str = Field(alias="_id")
+    server: str
+    hg_type: str
+    channel_id: int
+
 # --- Helper Functions ---
 
 
@@ -177,6 +183,9 @@ def get_team_hash(player_ids: List[str]) -> str:
     """Generates a consistent hash for a group of players"""
     return hashlib.md5(",".join(sorted(player_ids)).encode()).hexdigest()
 
+
+def get_channel_hash(server_id: int,server: str,hg_type: str):
+    return hashlib.md5(f"{server_id}_{server}_{hg_type}".encode()).hexdigest()
 
 # --- Main Save Function ---
 
@@ -556,3 +565,20 @@ def pretty_print_stats(stats):
     for build in builds:
         equipment:Equipment = build["equipment"]
         print(f"""\t{str(equipment.mainhand.type if equipment.mainhand else "").ljust(15)} \t{str(equipment.offhand.type if equipment.offhand else "").ljust(15)} \t{str(equipment.head.type if equipment.head else "").ljust(15)} \t{str(equipment.armor.type if equipment.armor else "").ljust(15)} \t{str(equipment.shoes.type if equipment.shoes else "").ljust(15)} \t{str(equipment.cape.type if equipment.cape else "").ljust(15)} \t{str(build["nb_uses"]).ljust(15)} \t{str(round(build["nb_wins"]/build["nb_uses"]*100,2))+'%'.ljust(15)} """)
+
+
+async def get_channels(server: str, hg_type: str):
+    channels = await db.channels.find({"server": server, "hg_type": hg_type}).to_list()
+    return [DBChannel(**doc) for doc in channels]
+
+async def add_channel(server_id: int,channel_id: int, server: str, hg_type: str):
+    await db.channels.update_one(
+        {"_id": get_channel_hash(server_id,server,hg_type)},
+        {
+            "$set": {"channel_id":channel_id, "server": server, "hg_type": hg_type}
+        },
+        upsert=True,
+    )
+
+async def remove_channel(channel: DBChannel):
+    await db.channels.delete_one({"_id": channel.id})
