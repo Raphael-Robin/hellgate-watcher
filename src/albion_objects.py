@@ -449,6 +449,8 @@ class Battle:
                 )
                 return False
         return True
+    
+    
 
     def is_depths(self) -> bool:
         for event in self.events:

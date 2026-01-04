@@ -1,3 +1,4 @@
+import asyncio
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -144,7 +145,12 @@ async def verify_channels():
             channels = await get_channels(server=server, hg_type=mode)
             for channel in channels:
                 if not await channel_exists(channel.channel_id):
-                    await remove_channel(channel)
+                    for x in range(3):
+                        await asyncio.sleep(2)
+                        if await channel_exists(channel.channel_id):
+                            break
+                    else:
+                        await remove_channel(channel)
 
 async def channel_exists(channel_id) -> bool:
     try:
@@ -156,10 +162,18 @@ async def channel_exists(channel_id) -> bool:
         return False
 
 async def get_discord_channel(channel: DBChannel) -> discord.TextChannel | None:
+    retries = 3
     if await channel_exists(channel.channel_id):
-        discord_channel = await bot.fetch_channel(channel.channel_id)
-        logger.debug(f"Found channel '{discord_channel.name}' ({discord_channel.id})")  # type: ignore
-        return discord_channel # type: ignore
+        try:
+            discord_channel = await bot.fetch_channel(channel.channel_id)
+            logger.debug(f"Found channel '{discord_channel.name}' ({discord_channel.id})")  # type: ignore
+            return discord_channel # type: ignore
+        except Exception as e:
+            logger.error(f"Something went wrong fetching channel {channel.channel_id}: {e}")
+            retries -= 1
+            if retries == 0:
+                return None
+            await asyncio.sleep(2)
     
 
 @app_commands.describe(
